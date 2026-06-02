@@ -25,5 +25,5 @@ export async function sendOtpEmail(
 		throw new Error(error.message);
 	}
 
-	console.log('[email] OTP sent to', email, '— id:', data?.id);
+	console.log('[email] OTP sent to', email, '— code:', otp, '— id:', data?.id);
 }

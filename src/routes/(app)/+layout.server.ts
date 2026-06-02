@@ -6,7 +6,6 @@ import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
     if (!locals.user) redirect(302, '/login');
-    if (!locals.organizationId && !locals.isDev) redirect(302, '/onboarding');
 
     const organizations = await db
         .select({ id: organization.id, name: organization.name })
