@@ -23,7 +23,7 @@
 	let confirmDeleteId = $state<string | null>(null);
 	let deleteFormRef = $state<HTMLFormElement | null>(null);
 
-	let localItems = $state(items.map(i => ({ ...i })));
+	let localItems = $derived(items.map(i => ({ ...i })));
 	$effect(() => { localItems = items.map(i => ({ ...i })); });
 
 	function move(index: number, dir: -1 | 1) {
