@@ -65,5 +65,11 @@
 		"svelte-dnd-action": "^0.9.69",
 		"svelte-query-params": "^0.2.5",
 		"valibot": "^1.4.1"
-	}
+	},
+	"pnpm": {
+ 		"onlyBuiltDependencies": [
+    		"@tailwindcss/oxide",
+    		"esbuild"
+  		]
+	}	
 }
