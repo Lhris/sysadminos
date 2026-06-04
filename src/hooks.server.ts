@@ -21,7 +21,24 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 
 		event.locals.isDev = u?.isDev ?? false;
 
-		const orgId = session.session.activeOrganizationId;
+		let orgId = session.session.activeOrganizationId;
+
+		if (!orgId) {
+			const [firstMembership] = await db
+				.select({ organizationId: member.organizationId })
+				.from(member)
+				.where(eq(member.userId, session.user.id))
+				.limit(1);
+
+			if (firstMembership) {
+				orgId = firstMembership.organizationId;
+				await auth.api.setActiveOrganization({
+					headers: event.request.headers,
+					body: { organizationId: orgId }
+				});
+			}
+		}
+
 		if (orgId) {
 			event.locals.organizationId = orgId;
 
