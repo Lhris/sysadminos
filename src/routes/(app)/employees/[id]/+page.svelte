@@ -2,23 +2,30 @@
 	import { enhance } from '$app/forms';
 	import * as Card from '$lib/components/ui/card';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import * as Sheet from '$lib/components/ui/sheet';
+	import * as Select from '$lib/components/ui/select';
+	import { DatePicker } from '$lib/components/ui/date-picker';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { relativeTime, formatDate } from '$lib/utils';
+	import { page } from '$app/state';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	const emp = $derived(data.employee);
 
-	type Status = 'active' | 'onboarding' | 'offboarding' | 'terminated';
+	type Status = 'offer_pending' | 'active' | 'onboarding' | 'offboarding' | 'terminated';
 	type DeviceType = 'laptop' | 'desktop' | 'monitor' | 'other';
 
 	const statusMeta: Record<Status, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
-		active:      { label: 'Active',      variant: 'default' },
-		onboarding:  { label: 'Onboarding',  variant: 'secondary' },
-		offboarding: { label: 'Offboarding', variant: 'outline' },
-		terminated:  { label: 'Terminated',  variant: 'destructive' }
+		offer_pending: { label: 'Offer Pending', variant: 'outline' },
+		active:        { label: 'Active',        variant: 'default' },
+		onboarding:    { label: 'Onboarding',    variant: 'secondary' },
+		offboarding:   { label: 'Offboarding',   variant: 'outline' },
+		terminated:    { label: 'Terminated',    variant: 'destructive' }
 	};
 
 	const deviceTypeLabel: Record<DeviceType, string> = {
@@ -33,6 +40,37 @@
 		'workstation.assigned':    'Workstation assigned',
 		'workstation.unassigned':  'Workstation unassigned'
 	};
+
+	const roles     = ['Bookkeeping Specialist', 'Bookkeeping Lead'];
+	const countries = ['United States', 'Philippines'];
+	const statuses  = [
+		{ value: 'offer_pending', label: 'Offer Pending' },
+		{ value: 'onboarding',    label: 'Onboarding' },
+		{ value: 'active',        label: 'Active' },
+		{ value: 'offboarding',   label: 'Offboarding' },
+		{ value: 'terminated',    label: 'Terminated' }
+	];
+
+	function statusLabel(v: string) { return statuses.find(s => s.value === v)?.label ?? v; }
+
+	// Edit sheet state
+	let sheetOpen   = $state(false);
+	let editRole    = $state('');
+	let editCountry = $state('');
+	let editStatus  = $state('');
+
+	function openEdit() {
+		editRole    = emp.role;
+		editCountry = emp.country;
+		editStatus  = emp.status;
+		sheetOpen   = true;
+	}
+
+	// Extract YYYY-MM-DD from stored PST timestamp for the date input
+	function toDateInput(dateStr: string | null | undefined): string {
+		if (!dateStr) return '';
+		return dateStr.slice(0, 10);
+	}
 
 	let showAssign = $state(false);
 
@@ -62,7 +100,7 @@
 		</div>
 	</header>
 
-	<Tabs.Root value="general">
+	<Tabs.Root value={page.url.searchParams.get('tab') ?? 'general'}>
 		<Tabs.List>
 			<Tabs.Trigger value="general">General</Tabs.Trigger>
 			<Tabs.Trigger value="checklist">Checklist</Tabs.Trigger>
@@ -74,12 +112,16 @@
 				<div class="flex flex-col gap-4">
 
 					<Card.Root>
-						<Card.Header>
+						<Card.Header class="flex flex-row items-center justify-between pb-3">
 							<Card.Title class="text-[15px] font-bold tracking-[-0.02em]">Profile</Card.Title>
+							<button type="button" onclick={openEdit} class="text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+								Edit
+							</button>
 						</Card.Header>
-						<Card.Content class="flex flex-col gap-0">
+						<Card.Content class="flex flex-col gap-0 p-0">
+
 							{#snippet row(label: string, value: string | null | undefined)}
-								<div class="flex items-start justify-between gap-4 py-3 [&:not(:last-child)]:border-b">
+								<div class="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-3 last:border-b-0">
 									<span class="text-[12px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{label}</span>
 									<span class="text-right text-[13.5px] text-foreground">{value ?? '—'}</span>
 								</div>
@@ -88,10 +130,12 @@
 							{@render row('Last Name', emp.lastName)}
 							{@render row('Role', emp.role)}
 							{@render row('Country', emp.country)}
+							{@render row('Address', emp.address)}
 							{@render row('Start Date', formatDate(emp.startDate))}
 							{@render row('Microsoft Email', emp.microsoftEmail)}
 							{@render row('Personal Email', emp.personalEmail)}
 							{@render row('Temp Password', emp.tempPassword ? '••••••••••••' : null)}
+
 						</Card.Content>
 					</Card.Root>
 
@@ -234,9 +278,18 @@
 										<Card.Title class="text-[14px] font-semibold tracking-[-0.01em]">
 											{template?.name ?? 'Unknown template'}
 										</Card.Title>
-										<p class="mt-0.5 text-[12px] text-muted-foreground">
-											Assigned {relativeTime(assignment.assignedAt)}
-										</p>
+										<div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+											<span class="text-[12px] text-muted-foreground">Assigned {relativeTime(assignment.assignedAt)}</span>
+											{#if assignment.startDate}
+												<span class="text-[12px] text-muted-foreground">Start: {formatDate(assignment.startDate)}</span>
+											{/if}
+											{#if assignment.dueDate}
+												{@const overdue = !allDone && new Date(assignment.dueDate) < new Date()}
+												<span class="text-[12px] {overdue ? 'font-medium text-destructive' : 'text-muted-foreground'}">
+													Due: {formatDate(assignment.dueDate)}
+												</span>
+											{/if}
+										</div>
 									</div>
 									<a href="/checklists/{assignment.id}" class="text-[12px] text-muted-foreground no-underline hover:text-foreground">
 										Open →
@@ -244,7 +297,6 @@
 								</div>
 							</Card.Header>
 							<Card.Content class="pt-0">
-								<!-- Progress -->
 								<div class="mb-3 flex items-center gap-3">
 									<div class="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
 										<div
@@ -254,7 +306,6 @@
 									</div>
 									<span class="shrink-0 text-[12px] tabular-nums text-muted-foreground">{doneCount}/{tasks.length}</span>
 								</div>
-								<!-- Tasks -->
 								<div class="flex flex-col">
 									{#each items as item (item.id)}
 										{#if item.type === 'section'}
@@ -263,27 +314,35 @@
 											</div>
 										{:else}
 											{@const done = doneIds.has(item.id)}
-											<form method="POST" action="?/toggleTask" use:enhance>
-												<input type="hidden" name="assignmentId" value={assignment.id} />
-												<input type="hidden" name="templateItemId" value={item.id} />
-												<input type="hidden" name="completing" value={done ? 'false' : 'true'} />
-												<button
-													type="submit"
-													class="flex w-full items-center gap-2.5 rounded-md px-1 py-[5px] text-left transition-colors hover:bg-muted/50"
-												>
-													<span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border-[1.5px] transition-colors
-														{done ? 'border-foreground bg-foreground' : 'border-border bg-background'}">
+											<div class="flex items-center gap-2.5 rounded-md px-1 py-[5px]">
+												<form method="POST" action="?/toggleTask" use:enhance class="shrink-0">
+													<input type="hidden" name="assignmentId" value={assignment.id} />
+													<input type="hidden" name="templateItemId" value={item.id} />
+													<input type="hidden" name="completing" value={done ? 'false' : 'true'} />
+													<button type="submit"
+														class="flex h-4 w-4 items-center justify-center rounded border-[1.5px] transition-colors
+															{done ? 'border-foreground bg-foreground' : 'border-border bg-background hover:border-foreground/50'}">
 														{#if done}
 															<svg class="h-2.5 w-2.5 text-background" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5">
 																<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
 															</svg>
 														{/if}
-													</span>
-													<span class="text-[13px] {done ? 'text-muted-foreground line-through' : 'text-foreground'}">
-														{item.label}
-													</span>
-												</button>
-											</form>
+													</button>
+												</form>
+												<span class="text-[13px] {done ? 'text-muted-foreground line-through' : 'text-foreground'}">
+													{item.label}
+												</span>
+												{#if item.videoUrl}
+													<a href={item.videoUrl} target="_blank" rel="noopener noreferrer"
+														title="View reference video"
+														class="shrink-0 text-muted-foreground/40 transition-colors hover:text-foreground">
+														<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+															<circle cx="12" cy="12" r="10" />
+															<path d="M12 16v-4M12 8h.01" stroke-linecap="round" />
+														</svg>
+													</a>
+												{/if}
+											</div>
 										{/if}
 									{/each}
 									{#if items.length === 0}
@@ -299,3 +358,114 @@
 	</Tabs.Root>
 
 </main>
+
+<Sheet.Root bind:open={sheetOpen}>
+	<Sheet.Content side="right" class="flex flex-col gap-0 p-0 sm:max-w-md">
+		<Sheet.Header class="shrink-0 border-b px-6 py-5">
+			<Sheet.Title class="text-base">Edit Employee</Sheet.Title>
+			<Sheet.Description class="text-xs">{emp.firstName} {emp.lastName}</Sheet.Description>
+		</Sheet.Header>
+
+		<form
+			method="POST"
+			action="?/updateEmployee"
+			use:enhance={() => async ({ result, update }) => {
+				await update({ reset: false });
+				if (result.type === 'success') sheetOpen = false;
+			}}
+			class="flex flex-1 flex-col overflow-hidden"
+		>
+			<div class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+
+				<div class="grid grid-cols-2 gap-4">
+					<div class="flex flex-col gap-1.5">
+						<Label class="text-[13px]">First Name</Label>
+						<Input name="firstName" value={emp.firstName} class={form?.editErrors?.firstName ? 'border-destructive' : ''} />
+						{#if form?.editErrors?.firstName}<p class="text-[12px] text-destructive">{form.editErrors.firstName}</p>{/if}
+					</div>
+					<div class="flex flex-col gap-1.5">
+						<Label class="text-[13px]">Last Name</Label>
+						<Input name="lastName" value={emp.lastName} class={form?.editErrors?.lastName ? 'border-destructive' : ''} />
+						{#if form?.editErrors?.lastName}<p class="text-[12px] text-destructive">{form.editErrors.lastName}</p>{/if}
+					</div>
+				</div>
+
+				<div class="grid grid-cols-2 gap-4">
+					<div class="flex flex-col gap-1.5">
+						<Label class="text-[13px]">Role</Label>
+						<Select.Root type="single" value={editRole} onValueChange={(v) => (editRole = v)}>
+							<Select.Trigger class="w-full">{editRole || 'Select role'}</Select.Trigger>
+							<Select.Content>
+								{#each roles as r}
+									<Select.Item value={r} label={r}>{r}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+						<input type="hidden" name="role" value={editRole} />
+					</div>
+					<div class="flex flex-col gap-1.5">
+						<Label class="text-[13px]">Country</Label>
+						<Select.Root type="single" value={editCountry} onValueChange={(v) => (editCountry = v)}>
+							<Select.Trigger class="w-full">{editCountry || 'Select country'}</Select.Trigger>
+							<Select.Content>
+								{#each countries as c}
+									<Select.Item value={c} label={c}>{c}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+						<input type="hidden" name="country" value={editCountry} />
+					</div>
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<Label class="text-[13px]">Address <span class="text-[11px] font-normal text-muted-foreground">Optional</span></Label>
+					<Input name="address" placeholder="123 Main St, City, State" value={emp.address ?? ''} />
+				</div>
+
+				<div class="grid grid-cols-2 gap-4">
+					<div class="flex flex-col gap-1.5">
+						<Label class="text-[13px]">Start Date</Label>
+						<DatePicker name="startDate" value={toDateInput(emp.startDate)} class={form?.editErrors?.startDate ? 'border-destructive' : ''} />
+						{#if form?.editErrors?.startDate}<p class="text-[12px] text-destructive">{form.editErrors.startDate}</p>{/if}
+					</div>
+					<div class="flex flex-col gap-1.5">
+						<Label class="text-[13px]">Status</Label>
+						<Select.Root type="single" value={editStatus} onValueChange={(v) => (editStatus = v)}>
+							<Select.Trigger class="w-full">{statusLabel(editStatus)}</Select.Trigger>
+							<Select.Content>
+								{#each statuses as s}
+									<Select.Item value={s.value} label={s.label}>{s.label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+						<input type="hidden" name="status" value={editStatus} />
+					</div>
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<Label class="text-[13px]">Microsoft Email</Label>
+					<Input name="microsoftEmail" type="email" value={emp.microsoftEmail} class={form?.editErrors?.microsoftEmail ? 'border-destructive' : ''} />
+					{#if form?.editErrors?.microsoftEmail}<p class="text-[12px] text-destructive">{form.editErrors.microsoftEmail}</p>{/if}
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<Label class="text-[13px]">Personal Email <span class="text-[11px] font-normal text-muted-foreground">Optional</span></Label>
+					<Input name="personalEmail" type="email" value={emp.personalEmail ?? ''} />
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<Label class="text-[13px]">Temp Password <span class="text-[11px] font-normal text-muted-foreground">Optional</span></Label>
+					<Input name="tempPassword" type="text" value={emp.tempPassword ?? ''} class="font-mono text-[13px]" />
+				</div>
+
+			</div>
+
+			<div class="shrink-0 border-t px-6 py-4 flex justify-end gap-2">
+				<Sheet.Close>
+					<Button type="button" variant="outline" size="sm">Cancel</Button>
+				</Sheet.Close>
+				<Button type="submit" size="sm">Save changes</Button>
+			</div>
+		</form>
+	</Sheet.Content>
+</Sheet.Root>

@@ -2,13 +2,17 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { Switch } from '$lib/components/ui/switch';
+	import * as Sheet from '$lib/components/ui/sheet';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { createSvelteTable } from '$lib/components/ui/data-table';
 	import { createColumnHelper, getCoreRowModel } from '@tanstack/table-core';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog';
-	import { Pencil, Check, ChevronUp, ChevronDown } from '@lucide/svelte';
+	import { Pencil, ChevronUp, ChevronDown } from '@lucide/svelte';
 
 	type Assignment = { id: string; employeeId: string; firstName: string; lastName: string };
-	type Item = { id: string; label: string; type: string };
+	type Item = { id: string; label: string; type: string; videoUrl?: string | null; docUrl?: string | null };
 	type Completion = { assignmentId: string; templateItemId: string };
 
 	let { assignments, items, completions }: {
@@ -18,10 +22,23 @@
 	} = $props();
 
 	let hideCompleted = $state(true);
-	let editingItemId = $state<string | null>(null);
-	let editingItemLabel = $state('');
 	let confirmDeleteId = $state<string | null>(null);
 	let deleteFormRef = $state<HTMLFormElement | null>(null);
+
+	// Edit sheet
+	let sheetOpen = $state(false);
+	let sheetItem = $state<Item | null>(null);
+	let sheetLabel = $state('');
+	let sheetVideoUrl = $state('');
+	let sheetDocUrl = $state('');
+
+	function openSheet(item: Item) {
+		sheetItem = item;
+		sheetLabel = item.label;
+		sheetVideoUrl = item.videoUrl ?? '';
+		sheetDocUrl = item.docUrl ?? '';
+		sheetOpen = true;
+	}
 
 	let localItems = $derived(items.map(i => ({ ...i })));
 	$effect(() => { localItems = items.map(i => ({ ...i })); });
@@ -53,14 +70,14 @@
 			: assignments
 	);
 
-	type TaskRow = { id: string; label: string; type: string };
+	type TaskRow = { id: string; label: string; type: string; videoUrl?: string | null; docUrl?: string | null };
 	const columnHelper = createColumnHelper<TaskRow>();
 	const taskCol = columnHelper.accessor('label', { id: 'task', header: 'Task' });
 	const userCols = $derived(
 		visibleAssignments.map(a => columnHelper.display({ id: `u_${a.id}`, size: 90 }))
 	);
 	const columns = $derived([taskCol, ...userCols]);
-	const tableData = $derived<TaskRow[]>(localItems.map(i => ({ id: i.id, label: i.label, type: i.type })));
+	const tableData = $derived<TaskRow[]>(localItems.map(i => ({ id: i.id, label: i.label, type: i.type, videoUrl: i.videoUrl, docUrl: i.docUrl })));
 	const table = createSvelteTable({
 		get data() { return tableData; },
 		get columns() { return columns; },
@@ -71,6 +88,28 @@
 {#if assignments.length === 0 && localItems.length === 0}
 	<div class="rounded-lg border border-dashed py-14 text-center">
 		<p class="text-[13px] text-muted-foreground">No tasks or users yet.</p>
+		<div class="mt-4 flex items-center justify-center gap-4">
+			<form method="POST" action="?/addItem"
+				use:enhance={() => {
+					return async ({ result, update }) => {
+						await update();
+						if (result.type === 'success') {
+							const id = (result.data as any)?.itemId as string | undefined;
+							if (id) openSheet({ id, label: 'New Task', type: 'task', videoUrl: null });
+						}
+					};
+				}}
+				class="contents">
+				<button type="submit" class="text-[13px] text-muted-foreground/50 transition-colors hover:text-muted-foreground">
+					+ Add task
+				</button>
+			</form>
+			<form method="POST" action="?/addSection" use:enhance class="contents">
+				<button type="submit" class="text-[13px] text-muted-foreground/50 transition-colors hover:text-muted-foreground">
+					+ Add section
+				</button>
+			</form>
+		</div>
 	</div>
 {:else if visibleAssignments.length === 0 && hideCompleted && assignments.length > 0}
 	<div class="rounded-lg border border-dashed py-10 text-center">
@@ -93,7 +132,7 @@
 								{@const a = visibleAssignments.find(a => `u_${a.id}` === header.column.id)!}
 								<th class="px-3 py-2.5 text-center text-[11px] font-medium tracking-[0.06em] text-muted-foreground" style="min-width:90px">
 									<div class="flex flex-col items-center gap-1">
-										<div class="flex h-6 w-6 items-center justify-center rounded-full bg-foreground text-[10px] font-bold text-background">
+										<div class="flex h-6 w-6 items-center justify-center rounded-full border border-border bg-muted text-[10px] font-bold text-muted-foreground">
 											{a.firstName[0]}{a.lastName[0]}
 										</div>
 										<a href={resolve("/employees/{a.employeeId}")}
@@ -126,27 +165,65 @@
 											<ChevronDown class="h-3.5 w-3.5" />
 										</button>
 									</div>
-									{#if editingItemId === item.id}
-										<form method="POST" action="?/updateItem"
-											use:enhance={() => ({ async update(r) { editingItemId = null; await r.update(); } })}
-											class="flex flex-1 items-center gap-1.5">
-											<input type="hidden" name="id" value={item.id} />
-											<input name="label" bind:value={editingItemLabel} autofocus
-												onkeydown={(e) => {
-													if (e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLElement).closest('form')?.requestSubmit(); }
-													if (e.key === 'Escape') editingItemId = null;
-												}}
-												class="min-w-0 flex-1 border-0 bg-transparent p-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground focus:outline-none"
-											/>
-											<button type="submit" class="shrink-0 text-muted-foreground hover:text-foreground">
-												<Check class="h-3.5 w-3.5" />
+									<div class="flex items-center gap-2">
+										<span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{item.label}</span>
+										<div class="flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+											<button type="button" onclick={() => openSheet(item)}
+												class="text-muted-foreground hover:text-foreground">
+												<Pencil class="h-3 w-3" />
 											</button>
-										</form>
-									{:else}
-										<div class="flex items-center gap-2">
-											<span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{item.label}</span>
+											<button type="button" onclick={() => (confirmDeleteId = item.id)}
+												class="text-[11px] text-muted-foreground hover:text-destructive">✕</button>
+										</div>
+									</div>
+								</div>
+							</td>
+						{:else}
+							<td class="sticky left-0 z-10 min-w-[200px] w-[26vw] bg-background py-3 pl-3 pr-3 group-hover:bg-accent/30 [box-shadow:4px_0_0_0_hsl(var(--background))] group-hover:[box-shadow:4px_0_0_0_hsl(var(--accent))]">
+								<div class="flex items-center gap-2">
+									<div class="flex flex-col">
+										<button type="button" onclick={() => move(index, -1)} disabled={index === 0}
+											class="text-muted-foreground/30 transition-colors hover:text-muted-foreground disabled:opacity-20 disabled:cursor-not-allowed">
+											<ChevronUp class="h-3.5 w-3.5" />
+										</button>
+										<button type="button" onclick={() => move(index, 1)} disabled={index === localItems.length - 1}
+											class="text-muted-foreground/30 transition-colors hover:text-muted-foreground disabled:opacity-20 disabled:cursor-not-allowed">
+											<ChevronDown class="h-3.5 w-3.5" />
+										</button>
+									</div>
+									<div class="flex flex-1 items-center justify-between gap-2">
+										<div class="flex items-center gap-1.5 min-w-0">
+											<span class="break-words text-[13.5px] text-foreground">{item.label}</span>
+											{#if item.videoUrl}
+												<a href={item.videoUrl} target="_blank" rel="noopener noreferrer"
+													title="Reference video"
+													class="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
+													onclick={(e) => e.stopPropagation()}>
+													<!-- Play circle -->
+													<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+														<circle cx="12" cy="12" r="10" />
+														<polygon points="10,8 16,12 10,16" fill="currentColor" stroke="none" />
+													</svg>
+												</a>
+											{/if}
+											{#if item.docUrl}
+												<a href={item.docUrl} target="_blank" rel="noopener noreferrer"
+													title="Documentation"
+													class="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
+													onclick={(e) => e.stopPropagation()}>
+													<!-- Document icon -->
+													<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5l5 5v11a2 2 0 01-2 2z" />
+													</svg>
+												</a>
+											{/if}
+										</div>
+										<div class="flex shrink-0 items-center gap-2">
+											<span class="text-[11.5px] text-muted-foreground/50">
+												{completions.filter(c => c.templateItemId === item.id).length}/{assignments.length}
+											</span>
 											<div class="flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-												<button type="button" onclick={() => { editingItemId = item.id; editingItemLabel = item.label; }}
+												<button type="button" onclick={() => openSheet(item)}
 													class="text-muted-foreground hover:text-foreground">
 													<Pencil class="h-3 w-3" />
 												</button>
@@ -154,63 +231,8 @@
 													class="text-[11px] text-muted-foreground hover:text-destructive">✕</button>
 											</div>
 										</div>
-									{/if}
+									</div>
 								</div>
-							</td>
-						{:else}
-							<td class="sticky left-0 z-10 min-w-[200px] w-[26vw] bg-background py-3 pl-3 pr-3 group-hover:bg-accent/30 [box-shadow:4px_0_0_0_hsl(var(--background))] group-hover:[box-shadow:4px_0_0_0_hsl(var(--accent))]">
-								{#if editingItemId === item.id}
-									<div class="flex items-center gap-2">
-										<div class="flex flex-col opacity-30">
-											<ChevronUp class="h-3.5 w-3.5 text-muted-foreground" />
-											<ChevronDown class="h-3.5 w-3.5 text-muted-foreground" />
-										</div>
-										<form method="POST" action="?/updateItem"
-											use:enhance={() => ({ async update(r) { editingItemId = null; await r.update(); } })}
-											class="flex flex-1 items-center gap-1.5">
-											<input type="hidden" name="id" value={item.id} />
-											<input name="label" bind:value={editingItemLabel} autofocus
-												onkeydown={(e) => {
-													if (e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLElement).closest('form')?.requestSubmit(); }
-													if (e.key === 'Escape') editingItemId = null;
-												}}
-												class="min-w-0 flex-1 border-0 bg-transparent p-0 text-[13.5px] text-foreground focus:outline-none"
-											/>
-											<button type="submit" class="shrink-0 text-muted-foreground hover:text-foreground">
-												<Check class="h-3.5 w-3.5" />
-											</button>
-										</form>
-									</div>
-								{:else}
-									<div class="flex items-center gap-2">
-										<div class="flex flex-col">
-											<button type="button" onclick={() => move(index, -1)} disabled={index === 0}
-												class="text-muted-foreground/30 transition-colors hover:text-muted-foreground disabled:opacity-20 disabled:cursor-not-allowed">
-												<ChevronUp class="h-3.5 w-3.5" />
-											</button>
-											<button type="button" onclick={() => move(index, 1)} disabled={index === localItems.length - 1}
-												class="text-muted-foreground/30 transition-colors hover:text-muted-foreground disabled:opacity-20 disabled:cursor-not-allowed">
-												<ChevronDown class="h-3.5 w-3.5" />
-											</button>
-										</div>
-										<div class="flex flex-1 items-center justify-between gap-2">
-											<span class="break-words text-[13.5px] text-foreground">{item.label}</span>
-											<div class="flex shrink-0 items-center gap-2">
-												<span class="text-[11.5px] text-muted-foreground/50">
-													{completions.filter(c => c.templateItemId === item.id).length}/{assignments.length}
-												</span>
-												<div class="flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-													<button type="button" onclick={() => { editingItemId = item.id; editingItemLabel = item.label; }}
-														class="text-muted-foreground hover:text-foreground">
-														<Pencil class="h-3 w-3" />
-													</button>
-													<button type="button" onclick={() => (confirmDeleteId = item.id)}
-														class="text-[11px] text-muted-foreground hover:text-destructive">✕</button>
-												</div>
-											</div>
-										</div>
-									</div>
-								{/if}
 							</td>
 							{#each visibleAssignments as a (a.id)}
 								{@const done = isDone(a.id, item.id)}
@@ -244,7 +266,7 @@
 										await update();
 										if (result.type === 'success') {
 											const id = (result.data as any)?.itemId as string | undefined;
-											if (id) { editingItemId = id; editingItemLabel = 'New Task'; }
+											if (id) openSheet({ id, label: 'New Task', type: 'task', videoUrl: null });
 										}
 									};
 								}}
@@ -276,6 +298,7 @@
 	</div>
 </div>
 
+<!-- Delete confirmation -->
 <form method="POST" action="?/deleteItem" use:enhance bind:this={deleteFormRef} class="hidden">
 	<input type="hidden" name="id" value={confirmDeleteId ?? ''} />
 </form>
@@ -306,3 +329,57 @@
 		</AlertDialog.Content>
 	</AlertDialog.Portal>
 </AlertDialog.Root>
+
+<!-- Edit sheet -->
+<Sheet.Root bind:open={sheetOpen}>
+	<Sheet.Content side="right" class="flex flex-col gap-0 p-0 sm:max-w-sm">
+		<Sheet.Header class="shrink-0 border-b px-6 py-5">
+			<Sheet.Title class="text-base">Edit {sheetItem?.type === 'section' ? 'Section' : 'Task'}</Sheet.Title>
+		</Sheet.Header>
+
+		{#if sheetItem}
+			<form
+				method="POST"
+				action="?/updateItem"
+				use:enhance={() => async ({ result, update }) => {
+					await update();
+					if (result.type === 'success') sheetOpen = false;
+				}}
+				class="flex flex-1 flex-col overflow-hidden"
+			>
+				<input type="hidden" name="id" value={sheetItem.id} />
+
+				<div class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+					<div class="flex flex-col gap-1.5">
+						<Label class="text-[13px]">Label</Label>
+						<Input name="label" bind:value={sheetLabel} autofocus />
+					</div>
+
+					{#if sheetItem.type === 'task'}
+						<div class="flex flex-col gap-1.5">
+							<Label class="text-[13px]">
+								Video URL
+								<span class="ml-1 text-[11px] font-normal text-muted-foreground">Optional</span>
+							</Label>
+							<Input name="videoUrl" bind:value={sheetVideoUrl} placeholder="https://loom.com/share/..." />
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<Label class="text-[13px]">
+								Documentation URL
+								<span class="ml-1 text-[11px] font-normal text-muted-foreground">Optional</span>
+							</Label>
+							<Input name="docUrl" bind:value={sheetDocUrl} placeholder="https://notion.so/..." />
+						</div>
+					{/if}
+				</div>
+
+				<div class="shrink-0 border-t px-6 py-4 flex justify-end gap-2">
+					<Sheet.Close>
+						<Button type="button" variant="outline" size="sm">Cancel</Button>
+					</Sheet.Close>
+					<Button type="submit" size="sm">Save</Button>
+				</div>
+			</form>
+		{/if}
+	</Sheet.Content>
+</Sheet.Root>

@@ -87,8 +87,12 @@ export const actions: Actions = {
 		const label = data.get('label')?.toString().trim() ?? '';
 		if (!id || !label) return fail(400);
 
+		const videoUrl = data.get('videoUrl')?.toString().trim() || null;
+		const docUrl   = data.get('docUrl')?.toString().trim() || null;
+		const notes    = data.get('notes')?.toString().trim() || null;
+
 		await db.update(checklistTemplateItem)
-			.set({ label })
+			.set({ label, videoUrl, docUrl, notes })
 			.where(eq(checklistTemplateItem.id, id));
 
 		return { success: true };
@@ -162,6 +166,58 @@ export const actions: Actions = {
 				db.update(checklistTemplateItem).set({ position }).where(eq(checklistTemplateItem.id, id))
 			)
 		);
+
+		return { success: true };
+	},
+
+	saveJson: async ({ request, params, locals }) => {
+		requireMember(locals.memberRole);
+		const orgId = locals.organizationId!;
+
+		const [template] = await db.select().from(checklistTemplate)
+			.where(and(eq(checklistTemplate.id, params.id), eq(checklistTemplate.organizationId, orgId)));
+		if (!template) error(404, 'Template not found');
+
+		const data = await request.formData();
+		const raw = data.get('json')?.toString() ?? '';
+
+		let parsed: { id?: string; type?: string; label?: string; videoUrl?: string | null; docUrl?: string | null; notes?: string | null }[];
+		try {
+			parsed = JSON.parse(raw);
+			if (!Array.isArray(parsed)) throw new Error('Must be an array');
+		} catch (e) {
+			return fail(400, { jsonError: e instanceof Error ? e.message : 'Invalid JSON' });
+		}
+
+		const existing = await db.select({ id: checklistTemplateItem.id })
+			.from(checklistTemplateItem)
+			.where(eq(checklistTemplateItem.templateId, params.id));
+		const existingIds = new Set(existing.map(e => e.id));
+		const incomingIds = new Set(parsed.map(i => i.id).filter(Boolean) as string[]);
+
+		// Delete items removed from the JSON
+		const toDelete = [...existingIds].filter(id => !incomingIds.has(id));
+		if (toDelete.length > 0) {
+			await db.delete(checklistTemplateItem).where(inArray(checklistTemplateItem.id, toDelete));
+		}
+
+		// Update or insert each item in order
+		for (let i = 0; i < parsed.length; i++) {
+			const item = parsed[i];
+			const type     = item.type === 'section' ? 'section' : 'task';
+			const label    = String(item.label ?? '').trim() || 'Untitled';
+			const videoUrl = item.videoUrl ?? null;
+			const docUrl   = item.docUrl   ?? null;
+
+			if (item.id && existingIds.has(item.id)) {
+				await db.update(checklistTemplateItem)
+					.set({ type, label, videoUrl, docUrl, position: i })
+					.where(eq(checklistTemplateItem.id, item.id));
+			} else {
+				await db.insert(checklistTemplateItem)
+					.values({ templateId: params.id, type, label, videoUrl, docUrl, position: i });
+			}
+		}
 
 		return { success: true };
 	},

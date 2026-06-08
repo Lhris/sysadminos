@@ -18,7 +18,10 @@ export const actions: Actions = {
 		const tempPassword   = data.get('tempPassword')?.toString().trim() || null;
 		const role           = data.get('role')?.toString().trim() ?? '';
 		const country        = data.get('country')?.toString().trim() ?? '';
-		const startDate      = data.get('startDate')?.toString() ?? '';
+		const address        = data.get('address')?.toString().trim() || null;
+		const startDateRaw   = data.get('startDate')?.toString() ?? '';
+		// Store as PST 8:30am (UTC-8) so new Date() renders the correct date in any US timezone
+		const startDate      = startDateRaw ? `${startDateRaw}T08:30:00-08:00` : '';
 		const status         = data.get('status')?.toString() ?? 'onboarding';
 
 		const errors: Record<string, string> = {};
@@ -43,7 +46,7 @@ export const actions: Actions = {
 				organizationId: locals.organizationId!,
 				firstName, lastName, microsoftEmail,
 				personalEmail, tempPassword,
-				role, country, startDate, status
+				role, country, address, startDate, status
 			}).returning();
 
 			await audit.log({

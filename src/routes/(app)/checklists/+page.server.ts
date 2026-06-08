@@ -66,11 +66,18 @@ export const actions: Actions = {
 		]);
 		if (!emp || !tmpl) return fail(400, { assignError: 'Invalid selection' });
 
+		const startRaw = data.get('startDate')?.toString() ?? '';
+		const dueRaw   = data.get('dueDate')?.toString() ?? '';
+		const startDate = startRaw ? `${startRaw}T08:30:00-08:00` : null;
+		const dueDate   = dueRaw   ? `${dueRaw}T08:30:00-08:00`   : null;
+
 		await db.insert(checklistAssignment).values({
 			organizationId: orgId,
 			employeeId,
 			templateId,
-			assignedByLabel: locals.user?.name
+			assignedByLabel: locals.user?.name,
+			startDate,
+			dueDate
 		}).onConflictDoNothing();
 
 		return { success: true };

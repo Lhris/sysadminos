@@ -63,7 +63,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		templateIds.length > 0
 			? db.select({ templateId: checklistTemplateItem.templateId, cnt: count() })
 				.from(checklistTemplateItem)
-				.where(inArray(checklistTemplateItem.templateId, templateIds))
+				.where(and(inArray(checklistTemplateItem.templateId, templateIds), eq(checklistTemplateItem.type, 'task')))
 				.groupBy(checklistTemplateItem.templateId)
 			: Promise.resolve([])
 	]);
@@ -71,14 +71,40 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const completedMap = Object.fromEntries(completionCounts.map(c => [c.assignmentId, c.cnt]));
 	const totalMap = Object.fromEntries(itemCounts.map(c => [c.templateId, c.cnt]));
 
-	const pendingChecklists = assignmentsRaw
-		.map(a => ({
-			...a,
-			completed: completedMap[a.id] ?? 0,
-			total: totalMap[a.templateId] ?? 0
-		}))
-		.filter(a => a.completed < a.total)
-		.sort((a, b) => (b.assignedAt?.getTime() ?? 0) - (a.assignedAt?.getTime() ?? 0))
+	// Group by employee — count pending vs total checklists + steps left
+	const byEmployee = new Map<string, {
+		employeeId: string; firstName: string; lastName: string;
+		total: number; pending: number; stepsLeft: number; totalSteps: number;
+	}>();
+
+	for (const a of assignmentsRaw) {
+		const completedSteps = completedMap[a.id] ?? 0;
+		const totalSteps = totalMap[a.templateId] ?? 0;
+		const isPending = completedSteps < totalSteps;
+
+		if (!byEmployee.has(a.employeeId)) {
+			byEmployee.set(a.employeeId, {
+				employeeId: a.employeeId,
+				firstName: a.firstName,
+				lastName: a.lastName,
+				total: 0,
+				pending: 0,
+				stepsLeft: 0,
+				totalSteps: 0
+			});
+		}
+		const entry = byEmployee.get(a.employeeId)!;
+		entry.total += 1;
+		entry.totalSteps += totalSteps;
+		if (isPending) {
+			entry.pending += 1;
+			entry.stepsLeft += totalSteps - completedSteps;
+		}
+	}
+
+	const pendingChecklists = [...byEmployee.values()]
+		.filter(e => e.pending > 0)
+		.sort((a, b) => b.pending - a.pending)
 		.slice(0, 10);
 
 	return {

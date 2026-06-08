@@ -67,6 +67,57 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 };
 
 export const actions: Actions = {
+	updateEmployee: async ({ request, params, locals }) => {
+		requireMember(locals.memberRole);
+		const orgId = locals.organizationId!;
+
+		const data = await request.formData();
+		const firstName      = data.get('firstName')?.toString().trim() ?? '';
+		const lastName       = data.get('lastName')?.toString().trim() ?? '';
+		const microsoftEmail = data.get('microsoftEmail')?.toString().trim() ?? '';
+		const personalEmail  = data.get('personalEmail')?.toString().trim() || null;
+		const tempPassword   = data.get('tempPassword')?.toString().trim() || null;
+		const role           = data.get('role')?.toString().trim() ?? '';
+		const country        = data.get('country')?.toString().trim() ?? '';
+		const address        = data.get('address')?.toString().trim() || null;
+		const startDateRaw   = data.get('startDate')?.toString() ?? '';
+		const startDate      = startDateRaw ? `${startDateRaw}T08:30:00-08:00` : '';
+		const status         = data.get('status')?.toString() ?? 'onboarding';
+
+		const errors: Record<string, string> = {};
+		if (!firstName)      errors.firstName      = 'Required';
+		if (!lastName)       errors.lastName       = 'Required';
+		if (!microsoftEmail) errors.microsoftEmail = 'Required';
+		else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(microsoftEmail))
+			errors.microsoftEmail = 'Invalid email';
+		if (!role)      errors.role      = 'Required';
+		if (!country)   errors.country   = 'Required';
+		if (!startDate) errors.startDate = 'Required';
+
+		if (Object.keys(errors).length > 0) return fail(400, { editErrors: errors });
+
+		const [emp] = await db.select().from(employee)
+			.where(and(eq(employee.id, params.id), eq(employee.organizationId, orgId)));
+		if (!emp) error(404, 'Employee not found');
+
+		await db.update(employee)
+			.set({ firstName, lastName, microsoftEmail, personalEmail, tempPassword, role, country, address, startDate, status, updatedAt: new Date() })
+			.where(and(eq(employee.id, params.id), eq(employee.organizationId, orgId)));
+
+		await audit.log({
+			action: 'employee.updated',
+			organizationId: orgId,
+			subjectType: 'employee',
+			subjectId: params.id,
+			subjectLabel: `${firstName} ${lastName}`,
+			actorId: locals.user!.id,
+			actorLabel: locals.user!.name,
+			metadata: { role, country, status }
+		});
+
+		return { updateSuccess: true };
+	},
+
 	assign: async ({ request, params, locals }) => {
 		requireMember(locals.memberRole);
 		const orgId = locals.organizationId!;

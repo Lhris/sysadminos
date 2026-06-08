@@ -10,6 +10,7 @@ export const employee = pgTable('employee', {
 	tempPassword: text('temp_password'),
 	role: text('role').notNull(),
 	country: text('country').notNull(),
+	address: text('address'),
 	startDate: text('start_date').notNull(),
 	status: text('status').notNull().default('onboarding'),
 	createdAt: timestamp('created_at').$defaultFn(() => new Date()),
@@ -100,6 +101,9 @@ export const checklistTemplateItem = pgTable('checklist_template_item', {
 	type: text('type').notNull().default('task'),
 	label: text('label').notNull(),
 	description: text('description'),
+	videoUrl: text('video_url'),
+	docUrl: text('doc_url'),
+	notes: text('notes'),
 	position: integer('position').notNull().default(0),
 	createdAt: timestamp('created_at').$defaultFn(() => new Date())
 }, (t) => [
@@ -112,7 +116,9 @@ export const checklistAssignment = pgTable('checklist_assignment', {
 	employeeId: text('employee_id').notNull().references(() => employee.id, { onDelete: 'cascade' }),
 	templateId: text('template_id').notNull().references(() => checklistTemplate.id, { onDelete: 'cascade' }),
 	assignedAt: timestamp('assigned_at').$defaultFn(() => new Date()),
-	assignedByLabel: text('assigned_by_label')
+	assignedByLabel: text('assigned_by_label'),
+	startDate: text('start_date'),
+	dueDate: text('due_date')
 }, (t) => [
 	uniqueIndex('checklist_assignment_unique_idx').on(t.employeeId, t.templateId),
 	index('checklist_assignment_employee_idx').on(t.employeeId)

@@ -12,29 +12,32 @@
 
 	const [params, helpers] = useEmployeeParams(page.url);
 
-	type Status = 'active' | 'onboarding' | 'offboarding' | 'terminated';
+	type Status = 'offer_pending' | 'active' | 'onboarding' | 'offboarding' | 'terminated';
 
 	const statusMeta: Record<Status, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
-		active:      { label: 'Active',      variant: 'default' },
-		onboarding:  { label: 'Onboarding',  variant: 'secondary' },
-		offboarding: { label: 'Offboarding', variant: 'outline' },
-		terminated:  { label: 'Terminated',  variant: 'destructive' }
+		offer_pending: { label: 'Offer Pending', variant: 'outline' },
+		active:        { label: 'Active',        variant: 'default' },
+		onboarding:    { label: 'Onboarding',    variant: 'secondary' },
+		offboarding:   { label: 'Offboarding',   variant: 'outline' },
+		terminated:    { label: 'Terminated',    variant: 'destructive' }
 	};
 
 	const filters: { label: string; value: Status | 'all' }[] = [
-		{ label: 'All',         value: 'all' },
-		{ label: 'Active',      value: 'active' },
-		{ label: 'Onboarding',  value: 'onboarding' },
-		{ label: 'Offboarding', value: 'offboarding' },
-		{ label: 'Terminated',  value: 'terminated' }
+		{ label: 'All',           value: 'all' },
+		{ label: 'Offer Pending', value: 'offer_pending' },
+		{ label: 'Active',        value: 'active' },
+		{ label: 'Onboarding',    value: 'onboarding' },
+		{ label: 'Offboarding',   value: 'offboarding' },
+		{ label: 'Terminated',    value: 'terminated' }
 	];
 
 	const counts = $derived({
-		all:         data.employees.length,
-		active:      data.employees.filter((e) => e.status === 'active').length,
-		onboarding:  data.employees.filter((e) => e.status === 'onboarding').length,
-		offboarding: data.employees.filter((e) => e.status === 'offboarding').length,
-		terminated:  data.employees.filter((e) => e.status === 'terminated').length
+		all:           data.employees.length,
+		offer_pending: data.employees.filter((e) => e.status === 'offer_pending').length,
+		active:        data.employees.filter((e) => e.status === 'active').length,
+		onboarding:    data.employees.filter((e) => e.status === 'onboarding').length,
+		offboarding:   data.employees.filter((e) => e.status === 'offboarding').length,
+		terminated:    data.employees.filter((e) => e.status === 'terminated').length
 	});
 
 	const activeFilter = $derived(params.status ?? 'all');

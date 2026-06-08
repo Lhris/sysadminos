@@ -115,7 +115,7 @@
         </div>
     </aside>
 
-    <div class="flex-1 min-w-0">
+    <div class="flex-1 min-w-0 bg-[#f9f9f7]">
         {@render children()}
     </div>
 </div>

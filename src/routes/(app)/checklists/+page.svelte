@@ -3,8 +3,9 @@
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
+	import { DatePicker } from '$lib/components/ui/date-picker';
 	import { Button } from '$lib/components/ui/button';
-	import { relativeTime } from '$lib/utils';
+	import { relativeTime, formatDate } from '$lib/utils';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -185,6 +186,14 @@
 								{/each}
 							</select>
 						</div>
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[12px] font-medium text-muted-foreground">Start Date <span class="font-normal opacity-60">optional</span></label>
+							<DatePicker name="startDate" placeholder="Start date" class="w-[160px]" />
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[12px] font-medium text-muted-foreground">Due Date <span class="font-normal opacity-60">optional</span></label>
+							<DatePicker name="dueDate" placeholder="Due date" class="w-[160px]" />
+						</div>
 						<Button type="submit" size="sm">Assign</Button>
 						<button
 							type="button"
@@ -234,7 +243,7 @@
 						<p class="text-[13px] text-muted-foreground">No assignments match your filters.</p>
 					</div>
 				{:else}
-					<div class="rounded-lg border overflow-hidden">
+					<div class="rounded-lg border overflow-hidden bg-white">
 						{#each rows() as row (row.assignment.id)}
 							{@const tasks = row.items.filter(i => i.type === 'task')}
 							{@const doneCount = tasks.filter(i => row.done.has(i.id)).length}
@@ -247,7 +256,7 @@
 								tabindex="0"
 								onclick={() => toggleExpand(row.assignment.id)}
 								onkeydown={(e) => e.key === 'Enter' && toggleExpand(row.assignment.id)}
-								class="flex w-full cursor-pointer items-center gap-4 border-b border-border/60 px-5 py-3 transition-colors hover:bg-accent {isExpanded ? 'bg-accent/50' : ''} {!isExpanded && rows().indexOf(row) === rows().length - 1 ? 'border-b-0' : ''}"
+								class="flex w-full cursor-pointer items-center gap-4 border-b border-border/60 px-5 py-3 transition-colors hover:bg-black/[0.02] {!isExpanded && rows().indexOf(row) === rows().length - 1 ? 'border-b-0' : ''}"
 							>
 								<!-- Chevron -->
 								<svg
@@ -276,10 +285,21 @@
 									{row.template.name}
 								</span>
 
-								<!-- Assigned date -->
-								<span class="w-[100px] shrink-0 text-right text-[12px] text-muted-foreground" title={row.assignment.assignedAt?.toLocaleString()}>
-									{relativeTime(row.assignment.assignedAt)}
-								</span>
+								<!-- Dates -->
+								<div class="flex w-[200px] shrink-0 flex-col gap-0.5 text-right">
+									{#if row.assignment.startDate}
+										<span class="text-[11.5px] text-muted-foreground">Start: {formatDate(row.assignment.startDate)}</span>
+									{/if}
+									{#if row.assignment.dueDate}
+										{@const overdue = new Date(row.assignment.dueDate) < new Date()}
+										<span class="text-[11.5px] {overdue ? 'text-destructive font-medium' : 'text-muted-foreground'}">
+											Due: {formatDate(row.assignment.dueDate)}
+										</span>
+									{/if}
+									{#if !row.assignment.startDate && !row.assignment.dueDate}
+										<span class="text-[11.5px] text-muted-foreground">{relativeTime(row.assignment.assignedAt)}</span>
+									{/if}
+								</div>
 
 								<!-- Progress bar -->
 								<div class="flex w-[160px] shrink-0 items-center gap-3">
@@ -295,7 +315,7 @@
 
 							<!-- Expanded tasks -->
 							{#if isExpanded}
-								<div class="border-b border-border/60 bg-muted/20 px-5 py-3 {rows().indexOf(row) === rows().length - 1 ? 'border-b-0' : ''}">
+								<div class="border-b border-border/60 px-5 py-3 {rows().indexOf(row) === rows().length - 1 ? 'border-b-0' : ''}">
 									{#if row.items.length === 0}
 										<p class="text-[12px] italic text-muted-foreground">No tasks defined in this template.</p>
 									{:else}

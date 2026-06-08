@@ -58,6 +58,23 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
+	updateDates: async ({ request, params, locals }) => {
+		requireMember(locals.memberRole);
+		const orgId = locals.organizationId!;
+
+		const data = await request.formData();
+		const startRaw = data.get('startDate')?.toString() ?? '';
+		const dueRaw   = data.get('dueDate')?.toString() ?? '';
+		const startDate = startRaw ? `${startRaw}T08:30:00-08:00` : null;
+		const dueDate   = dueRaw   ? `${dueRaw}T08:30:00-08:00`   : null;
+
+		await db.update(checklistAssignment)
+			.set({ startDate, dueDate })
+			.where(and(eq(checklistAssignment.id, params.assignmentId), eq(checklistAssignment.organizationId, orgId)));
+
+		return { success: true };
+	},
+
 	unassign: async ({ params, locals }) => {
 		requireMember(locals.memberRole);
 		const orgId = locals.organizationId!;
