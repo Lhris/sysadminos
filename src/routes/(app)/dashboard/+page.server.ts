@@ -15,6 +15,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		[{ onboardingCount }],
 		[{ terminationCount }],
 		[{ employeeCount }],
+		[{ activeCount }],
 		[{ workstationCount }],
 		[{ flaggedCount }],
 		[{ auditTodayCount }],
@@ -29,6 +30,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.where(and(eq(employee.organizationId, orgId), eq(employee.status, 'offboarding'))),
 		db.select({ employeeCount: count() }).from(employee)
 			.where(and(eq(employee.organizationId, orgId), ne(employee.status, 'terminated'))),
+		db.select({ activeCount: count() }).from(employee)
+			.where(and(eq(employee.organizationId, orgId), eq(employee.status, 'active'))),
 		db.select({ workstationCount: count() }).from(workstation)
 			.where(and(eq(workstation.organizationId, orgId), ne(workstation.status, 'retired'))),
 		db.select({ flaggedCount: count() }).from(workstation)
@@ -113,6 +116,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		onboardingCount,
 		terminationCount,
 		employeeCount,
+		activeCount,
 		workstationCount,
 		flaggedCount,
 		auditTodayCount

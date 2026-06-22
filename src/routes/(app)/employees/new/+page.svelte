@@ -6,12 +6,15 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import type { ActionData } from './$types';
+	import { COUNTRIES } from '$lib/constants';
+	import type { PageData, ActionData } from './$types';
 
-	let { form }: { form: ActionData } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	const errors = $derived(form?.errors ?? {});
-	const values = $derived(form?.values ?? {});
+	const errors = $derived((form && 'errors' in form ? form.errors : {}) as Record<string, string>);
+	const values = $derived((form && 'values' in form ? form.values : {}) as Record<string, string>);
+	const bulkError  = $derived(form && 'bulkError' in form ? form.bulkError : undefined);
+	const bulkErrors = $derived(form && 'bulkErrors' in form ? form.bulkErrors : undefined);
 
 	let firstName      = $state(form?.values?.firstName ?? '');
 	let lastName       = $state(form?.values?.lastName ?? '');
@@ -26,7 +29,7 @@
 		}
 	});
 
-	let selectedRole    = $state(form?.values?.role    ?? 'Bookkeeping Specialist');
+	let selectedRole    = $state(form?.values?.role    ?? data.roles[0] ?? '');
 	let selectedCountry = $state(form?.values?.country ?? 'United States');
 	let selectedStatus  = $state(form?.values?.status  ?? 'offer_pending');
 	let tempPassword    = $state('');
@@ -37,19 +40,34 @@
 		tempPassword = `${lastName || 'Employee'}${suffix}`;
 	}
 
-	const roles     = ['Bookkeeping Specialist', 'Bookkeeping Lead'];
-	const countries = ['United States', 'Philippines'];
+	const roles     = $derived(data.roles);
+	const countries = COUNTRIES;
 	const statuses  = [
-		{ value: 'offer_pending', label: 'Offer Pending' },
-		{ value: 'onboarding',    label: 'Onboarding' },
-		{ value: 'active',        label: 'Active' },
-		{ value: 'offboarding',   label: 'Offboarding' },
-		{ value: 'terminated',    label: 'Terminated' }
+		{ value: 'active',              label: 'Active' },
+		{ value: 'onboarding',          label: 'Onboarding' },
+		{ value: 'offer_pending',       label: 'Offer Pending' },
+		{ value: 'pending_termination', label: 'Pending Termination' },
+		{ value: 'terminated',          label: 'Terminated' },
+		{ value: 'no_status',           label: 'No Status' }
 	];
 
 	function statusLabel(v: string) {
 		return statuses.find(s => s.value === v)?.label ?? v;
 	}
+
+	// Single entry vs. pasting a JSON array. Stay on the bulk tab if the bulk
+	// submission failed so the user can fix the errors in place.
+	let mode = $state<'single' | 'bulk'>(form && 'bulkError' in form ? 'bulk' : 'single');
+	let bulkJson = $state(form && 'bulkValue' in form ? (form.bulkValue ?? '') : '');
+
+	const bulkExample = JSON.stringify(
+		[
+			{ firstName: 'Jane', lastName: 'Smith', microsoftEmail: 'jane.smith@unifibooks.com', role: 'Bookkeeping Specialist', country: 'United States', status: 'offer_pending' },
+			{ firstName: 'John', lastName: 'Cruz', microsoftEmail: 'john.cruz@unifibooks.com', role: 'Bookkeeping Lead', country: 'Philippines', startDate: '2026-07-01' }
+		],
+		null,
+		2
+	);
 </script>
 
 <main class="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-10 py-9">
@@ -63,7 +81,68 @@
 		<p class="mt-[5px] text-[13px] text-muted-foreground">Create a new employee profile and set their initial access details.</p>
 	</header>
 
-	<form method="POST" use:enhance class="flex max-w-2xl flex-col gap-5">
+	<div class="flex items-center gap-1.5">
+		<button type="button" onclick={() => (mode = 'single')}
+			class="rounded-sm px-3 py-1.5 text-[13px] font-medium transition-colors
+				{mode === 'single' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}">
+			Single
+		</button>
+		<button type="button" onclick={() => (mode = 'bulk')}
+			class="rounded-sm px-3 py-1.5 text-[13px] font-medium transition-colors
+				{mode === 'bulk' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}">
+			Bulk (JSON)
+		</button>
+	</div>
+
+	{#if mode === 'bulk'}
+		<form method="POST" action="?/bulk" use:enhance class="flex max-w-2xl flex-col gap-5">
+			<Card.Root>
+				<Card.Header>
+					<Card.Title class="text-[15px] font-bold tracking-[-0.02em]">Bulk Add</Card.Title>
+					<p class="mt-1 text-[12.5px] text-muted-foreground">
+						Paste a JSON array of employees. Required per row: <span class="font-mono text-[12px]">firstName</span>,
+						<span class="font-mono text-[12px]">lastName</span>, <span class="font-mono text-[12px]">microsoftEmail</span>,
+						<span class="font-mono text-[12px]">role</span>, <span class="font-mono text-[12px]">country</span>.
+						Optional: <span class="font-mono text-[12px]">personalEmail</span>, <span class="font-mono text-[12px]">tempPassword</span>,
+						<span class="font-mono text-[12px]">address</span>, <span class="font-mono text-[12px]">startDate</span> (YYYY-MM-DD),
+						<span class="font-mono text-[12px]">status</span>.
+					</p>
+				</Card.Header>
+				<Card.Content class="flex flex-col gap-3">
+					{#if bulkError}
+						<div class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-[12.5px] text-destructive">
+							<p class="font-medium">{bulkError}</p>
+							{#if bulkErrors?.length}
+								<ul class="mt-1.5 list-disc space-y-0.5 pl-4">
+									{#each bulkErrors as err}
+										<li>{err}</li>
+									{/each}
+								</ul>
+							{/if}
+						</div>
+					{/if}
+					<textarea
+						name="json"
+						bind:value={bulkJson}
+						spellcheck="false"
+						rows="14"
+						placeholder={bulkExample}
+						class="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-[12.5px] leading-relaxed text-foreground shadow-sm transition-colors placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring {bulkError ? 'border-destructive' : ''}"
+					></textarea>
+					<button type="button" onclick={() => (bulkJson = bulkExample)}
+						class="w-fit text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+						Insert example
+					</button>
+				</Card.Content>
+			</Card.Root>
+
+			<div class="flex items-center gap-3 pb-4">
+				<Button type="submit" size="sm">Add Employees</Button>
+				<Button variant="ghost" size="sm" href="/employees">Cancel</Button>
+			</div>
+		</form>
+	{:else}
+	<form method="POST" action="?/single" use:enhance class="flex max-w-2xl flex-col gap-5">
 
 		<Card.Root>
 			<Card.Header>
@@ -178,9 +257,11 @@
 
 				<div class="grid grid-cols-2 gap-4">
 					<div class="flex flex-col gap-1.5">
-						<Label class="text-[13px]">Start Date</Label>
-						<DatePicker name="startDate" value={values.startDate?.slice(0,10) ?? ''} class={errors.startDate ? 'border-destructive' : ''} />
-						{#if errors.startDate}<p class="text-[12px] text-destructive">{errors.startDate}</p>{/if}
+						<Label class="text-[13px]">
+							Start Date
+							<span class="ml-1 text-[11px] font-normal text-muted-foreground">Optional</span>
+						</Label>
+						<DatePicker name="startDate" value={values.startDate?.slice(0,10) ?? ''} />
 					</div>
 					<div class="flex flex-col gap-1.5">
 						<Label class="text-[13px]">Status</Label>
@@ -205,5 +286,6 @@
 		</div>
 
 	</form>
+	{/if}
 
 </main>

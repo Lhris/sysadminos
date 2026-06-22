@@ -10,12 +10,22 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { relativeTime, formatDate } from '$lib/utils';
+	import { visibleChecklistTypes, type ChecklistType } from '$lib/constants';
 	import { page } from '$app/state';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	const emp = $derived(data.employee);
+
+	// Onboarding/general checklists hide once an employee is being terminated, and
+	// vice-versa — so a quick onboard→terminate doesn't leave a stale onboarding list.
+	const visibleAssignments = $derived(
+		data.assignments.filter((a) => {
+			const t = data.templates.find((t) => t.id === a.templateId);
+			return t ? visibleChecklistTypes(emp.status).includes(t.checklistType as ChecklistType) : true;
+		})
+	);
 
 	type Status = 'offer_pending' | 'active' | 'onboarding' | 'offboarding' | 'terminated';
 	type DeviceType = 'laptop' | 'desktop' | 'monitor' | 'other';
@@ -41,7 +51,7 @@
 		'workstation.unassigned':  'Workstation unassigned'
 	};
 
-	const roles     = ['Bookkeeping Specialist', 'Bookkeeping Lead'];
+	const roles     = $derived(data.roles);
 	const countries = ['United States', 'Philippines'];
 	const statuses  = [
 		{ value: 'offer_pending', label: 'Offer Pending' },
@@ -99,6 +109,13 @@
 			</div>
 		</div>
 	</header>
+
+	{#if emp.status === 'terminated' || emp.status === 'pending_termination'}
+		<a href="/terminations/{emp.id}" class="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-[13px] text-destructive no-underline transition-colors hover:bg-destructive/10">
+			<span>This employee is being terminated. Track platform removals and termination checklists on the terminations page.</span>
+			<span class="font-medium">Open termination →</span>
+		</a>
+	{/if}
 
 	<Tabs.Root value={page.url.searchParams.get('tab') ?? 'general'}>
 		<Tabs.List>
@@ -254,7 +271,7 @@
 
 		<Tabs.Content value="checklist">
 			<div class="mt-4 flex flex-col gap-3">
-				{#if data.assignments.length === 0}
+				{#if visibleAssignments.length === 0}
 					<div class="rounded-lg border border-dashed py-14 text-center">
 						<p class="text-[13px] text-muted-foreground">No checklists assigned to this employee.</p>
 						<a href="/checklists" class="mt-1 block text-[12px] text-muted-foreground underline hover:text-foreground">
@@ -262,7 +279,7 @@
 						</a>
 					</div>
 				{:else}
-					{#each data.assignments as assignment (assignment.id)}
+					{#each visibleAssignments as assignment (assignment.id)}
 						{@const template = data.templates.find(t => t.id === assignment.templateId)}
 						{@const items = data.templateItems.filter(i => i.templateId === assignment.templateId)}
 						{@const tasks = items.filter(i => i.type === 'task')}

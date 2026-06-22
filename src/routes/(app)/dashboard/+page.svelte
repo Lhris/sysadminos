@@ -8,8 +8,8 @@
 
 	const stats = $derived([
 		{
-			label: 'Employees',
-			value: String(data.employeeCount),
+			label: 'Active Employees',
+			value: String(data.activeCount),
 			sub: `${data.onboardingCount} onboarding`,
 			href: '/employees'
 		},

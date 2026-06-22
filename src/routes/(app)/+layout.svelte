@@ -13,6 +13,7 @@
         { label: 'Dashboard', href: '/dashboard' },
         { label: 'Employees', href: '/employees' },
         { label: 'Workstations', href: '/workstations' },
+        { label: 'Platforms', href: '/platforms' },
         { label: 'Checklists', href: '/checklists' },
         { label: 'Orders', href: '/orders' },
         { label: 'Audit Log', href: '/audit' },

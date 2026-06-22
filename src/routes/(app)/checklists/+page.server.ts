@@ -3,6 +3,7 @@ import { employee, checklistTemplate, checklistTemplateItem, checklistAssignment
 import { eq, asc, and } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
 import { requireMember } from '$lib/server/auth-guard';
+import { CHECKLIST_TYPES } from '$lib/constants';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -47,7 +48,10 @@ export const actions: Actions = {
 		const name = data.get('name')?.toString().trim() ?? '';
 		if (!name) return fail(400, { addTemplateError: 'Name is required' });
 
-		await db.insert(checklistTemplate).values({ organizationId: orgId, name });
+		const typeRaw = data.get('checklistType')?.toString() ?? 'general';
+		const checklistType = (CHECKLIST_TYPES as readonly string[]).includes(typeRaw) ? typeRaw : 'general';
+
+		await db.insert(checklistTemplate).values({ organizationId: orgId, name, checklistType });
 		return { success: true };
 	},
 

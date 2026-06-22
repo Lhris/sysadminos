@@ -5,7 +5,9 @@
 	import * as Table from '$lib/components/ui/table';
 	import { DatePicker } from '$lib/components/ui/date-picker';
 	import { Button } from '$lib/components/ui/button';
+	import { Badge } from '$lib/components/ui/badge';
 	import { relativeTime, formatDate } from '$lib/utils';
+	import { CHECKLIST_TYPES, CHECKLIST_TYPE_LABELS } from '$lib/constants';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -16,6 +18,7 @@
 	let search = $state('');
 	let filterStatus = $state<'all' | 'not-started' | 'in-progress' | 'complete'>('all');
 	let expanded = $state(new Set<string>());
+	let showCompleted = $state(false);
 
 	const inputClass = 'flex h-9 rounded-md border border-input bg-background px-3 py-1 text-[13.5px] text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring';
 	const selectClass = inputClass + ' w-full';
@@ -75,6 +78,16 @@
 		});
 	});
 
+	function isRowComplete(r: Row): boolean {
+		const tasks = r.items.filter(i => i.type === 'task');
+		return tasks.length > 0 && tasks.every(i => r.done.has(i.id));
+	}
+
+	// Active (incomplete) rows show in the main list; completed rows go to the
+	// collapsed "Completed" card below.
+	const activeRows = $derived((): Row[] => rows().filter(r => !isRowComplete(r)));
+	const completedRows = $derived((): Row[] => rows().filter(r => isRowComplete(r)));
+
 	const stats = $derived(() => {
 		const all = allRows();
 		const complete = all.filter(r => {
@@ -97,8 +110,9 @@
 		)
 	);
 
+	// Termination checklists are managed on /terminations, not assigned here.
 	const availableTemplates = $derived(
-		data.templates.filter(t => !assignedTemplateIds.has(t.id))
+		data.templates.filter(t => !assignedTemplateIds.has(t.id) && t.checklistType !== 'termination')
 	);
 
 	function toggleExpand(id: string) {
@@ -243,124 +257,47 @@
 						<p class="text-[13px] text-muted-foreground">No assignments match your filters.</p>
 					</div>
 				{:else}
-					<div class="rounded-lg border overflow-hidden bg-white">
-						{#each rows() as row (row.assignment.id)}
-							{@const tasks = row.items.filter(i => i.type === 'task')}
-							{@const doneCount = tasks.filter(i => row.done.has(i.id)).length}
-							{@const progress = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0}
-							{@const isExpanded = expanded.has(row.assignment.id)}
+					{#if activeRows().length === 0}
+						<div class="rounded-lg border border-dashed py-10 text-center">
+							<p class="text-[13px] text-muted-foreground">No in-progress assignments.</p>
+							{#if completedRows().length > 0}
+								<p class="mt-1 text-[12px] text-muted-foreground">All matching assignments are complete — see below.</p>
+							{/if}
+						</div>
+					{:else}
+						<div class="rounded-lg border overflow-hidden bg-white">
+							{#each activeRows() as row (row.assignment.id)}
+								{@render assignmentRow(row, activeRows())}
+							{/each}
+						</div>
+					{/if}
 
-							<!-- Row -->
-							<div
-								role="button"
-								tabindex="0"
-								onclick={() => toggleExpand(row.assignment.id)}
-								onkeydown={(e) => e.key === 'Enter' && toggleExpand(row.assignment.id)}
-								class="flex w-full cursor-pointer items-center gap-4 border-b border-border/60 px-5 py-3 transition-colors hover:bg-black/[0.02] {!isExpanded && rows().indexOf(row) === rows().length - 1 ? 'border-b-0' : ''}"
+					<!-- Completed (collapsed by default) -->
+					{#if completedRows().length > 0}
+						<div class="rounded-lg border overflow-hidden bg-white">
+							<button
+								type="button"
+								onclick={() => (showCompleted = !showCompleted)}
+								class="flex w-full items-center gap-2 px-5 py-3 text-left transition-colors hover:bg-black/[0.02]"
 							>
-								<!-- Chevron -->
 								<svg
-									class="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform {isExpanded ? 'rotate-90' : ''}"
+									class="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform {showCompleted ? 'rotate-90' : ''}"
 									fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"
 								>
 									<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
 								</svg>
-
-								<!-- Avatar + name -->
-								<div class="flex w-[180px] shrink-0 items-center gap-2.5">
-									<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground text-[11px] font-bold text-background">
-										{row.emp.firstName[0]}{row.emp.lastName[0]}
-									</div>
-									<a
-										href="/checklists/{row.assignment.id}"
-										onclick={(e) => e.stopPropagation()}
-										class="truncate text-[13px] font-medium text-foreground no-underline hover:underline"
-									>
-										{row.emp.firstName} {row.emp.lastName}
-									</a>
-								</div>
-
-								<!-- Template name -->
-								<span class="w-[200px] shrink-0 truncate text-[13px] text-muted-foreground">
-									{row.template.name}
-								</span>
-
-								<!-- Dates -->
-								<div class="flex w-[200px] shrink-0 flex-col gap-0.5 text-right">
-									{#if row.assignment.startDate}
-										<span class="text-[11.5px] text-muted-foreground">Start: {formatDate(row.assignment.startDate)}</span>
-									{/if}
-									{#if row.assignment.dueDate}
-										{@const overdue = new Date(row.assignment.dueDate) < new Date()}
-										<span class="text-[11.5px] {overdue ? 'text-destructive font-medium' : 'text-muted-foreground'}">
-											Due: {formatDate(row.assignment.dueDate)}
-										</span>
-									{/if}
-									{#if !row.assignment.startDate && !row.assignment.dueDate}
-										<span class="text-[11.5px] text-muted-foreground">{relativeTime(row.assignment.assignedAt)}</span>
-									{/if}
-								</div>
-
-								<!-- Progress bar -->
-								<div class="flex w-[160px] shrink-0 items-center gap-3">
-									<div class="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-										<div
-											class="h-full rounded-full transition-all duration-300 {doneCount === tasks.length && tasks.length > 0 ? 'bg-emerald-500' : 'bg-foreground'}"
-											style="width: {progress}%"
-										></div>
-									</div>
-									<span class="shrink-0 text-[12px] tabular-nums text-muted-foreground">{doneCount}/{tasks.length}</span>
-								</div>
-							</div>
-
-							<!-- Expanded tasks -->
-							{#if isExpanded}
-								<div class="border-b border-border/60 px-5 py-3 {rows().indexOf(row) === rows().length - 1 ? 'border-b-0' : ''}">
-									{#if row.items.length === 0}
-										<p class="text-[12px] italic text-muted-foreground">No tasks defined in this template.</p>
-									{:else}
-										<div class="flex flex-col gap-0.5 pl-[52px]">
-											{#each row.items as item (item.id)}
-												{#if item.type === 'section'}
-													<div class="mb-0.5 mt-2.5 first:mt-0 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-														{item.label}
-													</div>
-												{:else}
-													{@const done = row.done.has(item.id)}
-													<form method="POST" action="?/toggle" use:enhance>
-														<input type="hidden" name="assignmentId" value={row.assignment.id} />
-														<input type="hidden" name="templateItemId" value={item.id} />
-														<input type="hidden" name="completing" value={done ? 'false' : 'true'} />
-														<button
-															type="submit"
-															class="flex w-full items-center gap-2.5 rounded-md px-2 py-[5px] text-left transition-colors hover:bg-muted/60"
-														>
-															<span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border-[1.5px] transition-colors
-																{done ? 'border-foreground bg-foreground' : 'border-border bg-background'}">
-																{#if done}
-																	<svg class="h-2.5 w-2.5 text-background" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5">
-																		<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-																	</svg>
-																{/if}
-															</span>
-															<span class="text-[13px] {done ? 'text-muted-foreground line-through' : 'text-foreground'}">
-																{item.label}
-															</span>
-														</button>
-													</form>
-												{/if}
-											{/each}
-										</div>
-										<div class="mt-3 pl-[52px]">
-											<a href="/checklists/{row.assignment.id}" class="text-[12px] text-muted-foreground no-underline hover:text-foreground">
-												Open full view →
-											</a>
-										</div>
-									{/if}
+								<span class="text-[13px] font-medium text-foreground">Completed</span>
+								<span class="text-[12px] tabular-nums text-muted-foreground">{completedRows().length}</span>
+							</button>
+							{#if showCompleted}
+								<div class="border-t border-border/60">
+									{#each completedRows() as row (row.assignment.id)}
+										{@render assignmentRow(row, completedRows())}
+									{/each}
 								</div>
 							{/if}
-						{/each}
-					</div>
+						</div>
+					{/if}
 				{/if}
 
 			</div>
@@ -398,6 +335,11 @@
 							required
 							autofocus
 						/>
+						<select name="checklistType" class="{inputClass} w-[150px]">
+							{#each CHECKLIST_TYPES as type (type)}
+								<option value={type}>{CHECKLIST_TYPE_LABELS[type]}</option>
+							{/each}
+						</select>
 						<Button type="submit" size="sm">Create</Button>
 						<button type="button" onclick={() => (showNewTemplate = false)} class="text-[13px] text-muted-foreground hover:text-foreground">
 							Cancel
@@ -432,7 +374,10 @@
 										{@const assignmentCount = data.assignments.filter(a => a.templateId === template.id).length}
 										<Table.Row class="group">
 											<Table.Cell class="py-3 pl-5 pr-3">
-												<span class="text-[13.5px] font-medium text-foreground">{template.name}</span>
+												<div class="flex items-center gap-2">
+													<a href="/checklists/templates/{template.id}" class="text-[13.5px] font-medium text-foreground no-underline hover:underline">{template.name}</a>
+													<Badge variant="secondary" class="text-[10.5px] font-medium uppercase tracking-[0.04em]">{CHECKLIST_TYPE_LABELS[template.checklistType as keyof typeof CHECKLIST_TYPE_LABELS] ?? template.checklistType}</Badge>
+												</div>
 												{#if template.description}
 													<p class="mt-0.5 text-[12px] text-muted-foreground">{template.description}</p>
 												{/if}
@@ -457,3 +402,121 @@
 	</Tabs.Root>
 
 </main>
+
+{#snippet assignmentRow(row: Row, list: Row[])}
+	{@const tasks = row.items.filter(i => i.type === 'task')}
+	{@const doneCount = tasks.filter(i => row.done.has(i.id)).length}
+	{@const progress = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0}
+	{@const isExpanded = expanded.has(row.assignment.id)}
+	{@const isLast = list.indexOf(row) === list.length - 1}
+
+	<!-- Row -->
+	<div
+		role="button"
+		tabindex="0"
+		onclick={() => toggleExpand(row.assignment.id)}
+		onkeydown={(e) => e.key === 'Enter' && toggleExpand(row.assignment.id)}
+		class="flex w-full cursor-pointer items-center gap-4 border-b border-border/60 px-5 py-3 transition-colors hover:bg-black/[0.02] {!isExpanded && isLast ? 'border-b-0' : ''}"
+	>
+		<!-- Chevron -->
+		<svg
+			class="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform {isExpanded ? 'rotate-90' : ''}"
+			fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"
+		>
+			<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+		</svg>
+
+		<!-- Avatar + name -->
+		<div class="flex w-[180px] shrink-0 items-center gap-2.5">
+			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground text-[11px] font-bold text-background">
+				{row.emp.firstName[0]}{row.emp.lastName[0]}
+			</div>
+			<a
+				href="/checklists/{row.assignment.id}"
+				onclick={(e) => e.stopPropagation()}
+				class="truncate text-[13px] font-medium text-foreground no-underline hover:underline"
+			>
+				{row.emp.firstName} {row.emp.lastName}
+			</a>
+		</div>
+
+		<!-- Template name -->
+		<span class="w-[200px] shrink-0 truncate text-[13px] text-muted-foreground">
+			{row.template.name}
+		</span>
+
+		<!-- Dates -->
+		<div class="flex w-[200px] shrink-0 flex-col gap-0.5 text-right">
+			{#if row.assignment.startDate}
+				<span class="text-[11.5px] text-muted-foreground">Start: {formatDate(row.assignment.startDate)}</span>
+			{/if}
+			{#if row.assignment.dueDate}
+				{@const overdue = new Date(row.assignment.dueDate) < new Date()}
+				<span class="text-[11.5px] {overdue ? 'text-destructive font-medium' : 'text-muted-foreground'}">
+					Due: {formatDate(row.assignment.dueDate)}
+				</span>
+			{/if}
+			{#if !row.assignment.startDate && !row.assignment.dueDate}
+				<span class="text-[11.5px] text-muted-foreground">{relativeTime(row.assignment.assignedAt)}</span>
+			{/if}
+		</div>
+
+		<!-- Progress bar -->
+		<div class="flex w-[160px] shrink-0 items-center gap-3">
+			<div class="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+				<div
+					class="h-full rounded-full transition-all duration-300 {doneCount === tasks.length && tasks.length > 0 ? 'bg-emerald-500' : 'bg-foreground'}"
+					style="width: {progress}%"
+				></div>
+			</div>
+			<span class="shrink-0 text-[12px] tabular-nums text-muted-foreground">{doneCount}/{tasks.length}</span>
+		</div>
+	</div>
+
+	<!-- Expanded tasks -->
+	{#if isExpanded}
+		<div class="border-b border-border/60 px-5 py-3 {isLast ? 'border-b-0' : ''}">
+			{#if row.items.length === 0}
+				<p class="text-[12px] italic text-muted-foreground">No tasks defined in this template.</p>
+			{:else}
+				<div class="flex flex-col gap-0.5 pl-[52px]">
+					{#each row.items as item (item.id)}
+						{#if item.type === 'section'}
+							<div class="mb-0.5 mt-2.5 first:mt-0 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+								{item.label}
+							</div>
+						{:else}
+							{@const done = row.done.has(item.id)}
+							<form method="POST" action="?/toggle" use:enhance>
+								<input type="hidden" name="assignmentId" value={row.assignment.id} />
+								<input type="hidden" name="templateItemId" value={item.id} />
+								<input type="hidden" name="completing" value={done ? 'false' : 'true'} />
+								<button
+									type="submit"
+									class="flex w-full items-center gap-2.5 rounded-md px-2 py-[5px] text-left transition-colors hover:bg-muted/60"
+								>
+									<span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border-[1.5px] transition-colors
+										{done ? 'border-foreground bg-foreground' : 'border-border bg-background'}">
+										{#if done}
+											<svg class="h-2.5 w-2.5 text-background" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+											</svg>
+										{/if}
+									</span>
+									<span class="text-[13px] {done ? 'text-muted-foreground line-through' : 'text-foreground'}">
+										{item.label}
+									</span>
+								</button>
+							</form>
+						{/if}
+					{/each}
+				</div>
+				<div class="mt-3 pl-[52px]">
+					<a href="/checklists/{row.assignment.id}" class="text-[12px] text-muted-foreground no-underline hover:text-foreground">
+						Open full view →
+					</a>
+				</div>
+			{/if}
+		</div>
+	{/if}
+{/snippet}

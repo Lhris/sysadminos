@@ -4,6 +4,7 @@ import { eq, desc, and, isNull, asc, inArray } from 'drizzle-orm';
 import { error, fail } from '@sveltejs/kit';
 import * as audit from '$lib/server/audit';
 import { requireMember } from '$lib/server/auth-guard';
+import { listRoles, ensureRoles } from '$lib/server/roles';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -20,7 +21,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const assignmentIds = assignments.map(a => a.id);
 	const templateIds = [...new Set(assignments.map(a => a.templateId))];
 
-	const [events, allWorkstations, templates, templateItems, completions] = await Promise.all([
+	const [events, allWorkstations, templates, templateItems, completions, roles] = await Promise.all([
 		db.select().from(auditLog)
 			.where(and(eq(auditLog.subjectId, params.id), eq(auditLog.organizationId, orgId)))
 			.orderBy(desc(auditLog.createdAt)),
@@ -48,7 +49,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			: Promise.resolve([] as (typeof checklistTemplateItem.$inferSelect)[]),
 		assignmentIds.length > 0
 			? db.select().from(checklistCompletion).where(inArray(checklistCompletion.assignmentId, assignmentIds))
-			: Promise.resolve([] as (typeof checklistCompletion.$inferSelect)[])
+			: Promise.resolve([] as (typeof checklistCompletion.$inferSelect)[]),
+		listRoles(orgId)
 	]);
 
 	return {
@@ -62,7 +64,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		assignments,
 		templates,
 		templateItems,
-		completions
+		completions,
+		roles
 	};
 };
 
@@ -92,7 +95,6 @@ export const actions: Actions = {
 			errors.microsoftEmail = 'Invalid email';
 		if (!role)      errors.role      = 'Required';
 		if (!country)   errors.country   = 'Required';
-		if (!startDate) errors.startDate = 'Required';
 
 		if (Object.keys(errors).length > 0) return fail(400, { editErrors: errors });
 
@@ -100,9 +102,13 @@ export const actions: Actions = {
 			.where(and(eq(employee.id, params.id), eq(employee.organizationId, orgId)));
 		if (!emp) error(404, 'Employee not found');
 
+		const becameTerminated = status === 'terminated' && emp.status !== 'terminated';
+
 		await db.update(employee)
 			.set({ firstName, lastName, microsoftEmail, personalEmail, tempPassword, role, country, address, startDate, status, updatedAt: new Date() })
 			.where(and(eq(employee.id, params.id), eq(employee.organizationId, orgId)));
+
+		await ensureRoles(orgId, [role]);
 
 		await audit.log({
 			action: 'employee.updated',
@@ -114,6 +120,20 @@ export const actions: Actions = {
 			actorLabel: locals.user!.name,
 			metadata: { role, country, status }
 		});
+
+		// Terminations are derived from employee status now (see /terminations) —
+		// no separate record to create, just record the transition.
+		if (becameTerminated) {
+			await audit.log({
+				action: 'employee.terminated',
+				organizationId: orgId,
+				subjectType: 'employee',
+				subjectId: params.id,
+				subjectLabel: `${firstName} ${lastName}`,
+				actorId: locals.user!.id,
+				actorLabel: locals.user!.name
+			});
+		}
 
 		return { updateSuccess: true };
 	},

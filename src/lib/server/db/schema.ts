@@ -17,6 +17,15 @@ export const employee = pgTable('employee', {
 	updatedAt: timestamp('updated_at').$defaultFn(() => new Date())
 });
 
+export const role = pgTable('role', {
+	id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+	organizationId: text('organization_id'),
+	name: text('name').notNull(),
+	createdAt: timestamp('created_at').$defaultFn(() => new Date())
+}, (t) => [
+	uniqueIndex('role_org_name_unique').on(t.organizationId, t.name)
+]);
+
 export const workstation = pgTable('workstation', {
 	id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 	organizationId: text('organization_id'),
@@ -90,6 +99,9 @@ export const checklistTemplate = pgTable('checklist_template', {
 	organizationId: text('organization_id').notNull(),
 	name: text('name').notNull(),
 	description: text('description'),
+	// Distinguishes onboarding vs termination (vs general) checklists. See
+	// CHECKLIST_TYPES in src/lib/constants.ts — extendable to more types.
+	checklistType: text('checklist_type').notNull().default('general'),
 	createdAt: timestamp('created_at').$defaultFn(() => new Date())
 }, (t) => [
 	index('checklist_template_org_idx').on(t.organizationId)
@@ -134,6 +146,38 @@ export const checklistCompletion = pgTable('checklist_completion', {
 	uniqueIndex('checklist_completion_unique_idx').on(t.assignmentId, t.templateItemId),
 	index('checklist_completion_assignment_idx').on(t.assignmentId)
 ]);
+
+// ── Platform tracker ──────────────────────────────────────────────
+
+export const platform = pgTable('platform', {
+	id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+	organizationId: text('organization_id').notNull(),
+	name: text('name').notNull(),
+	description: text('description'),
+	createdAt: timestamp('created_at').$defaultFn(() => new Date()),
+	updatedAt: timestamp('updated_at').$defaultFn(() => new Date())
+}, (t) => [
+	index('platform_org_idx').on(t.organizationId)
+]);
+
+// A single seat/license on a platform, optionally linked to an employee.
+export const platformLicense = pgTable('platform_license', {
+	id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+	platformId: text('platform_id').notNull().references(() => platform.id, { onDelete: 'cascade' }),
+	employeeId: text('employee_id').references(() => employee.id, { onDelete: 'set null' }),
+	matchEmail: text('match_email'),
+	displayName: text('display_name'),
+	metadata: text('metadata'),
+	removedAt: timestamp('removed_at'),
+	removedByLabel: text('removed_by_label'),
+	createdAt: timestamp('created_at').$defaultFn(() => new Date())
+}, (t) => [
+	index('platform_license_platform_idx').on(t.platformId),
+	index('platform_license_employee_idx').on(t.employeeId)
+]);
+
+export type Platform = typeof platform.$inferSelect;
+export type PlatformLicense = typeof platformLicense.$inferSelect;
 
 export type ChecklistTemplate = typeof checklistTemplate.$inferSelect;
 export type ChecklistTemplateItem = typeof checklistTemplateItem.$inferSelect;
