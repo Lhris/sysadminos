@@ -20,16 +20,16 @@
 			href: '/workstations'
 		},
 		{
-			label: 'Open Orders',
-			value: '—',
-			sub: 'no orders',
-			href: '/orders'
+			label: 'Active Onboarding',
+			value: String(data.onboardingCount),
+			sub: `${data.onboardingCount === 1 ? 'employee' : 'employees'} onboarding`,
+			href: '/employees?status=onboarding'
 		},
 		{
-			label: 'Audit Events',
-			value: String(data.auditTodayCount),
-			sub: 'this week',
-			href: '/audit'
+			label: 'Active Terminations',
+			value: String(data.terminationCount),
+			sub: `${data.terminationCount === 1 ? 'employee' : 'employees'} pending termination`,
+			href: '/terminations'
 		}
 	]);
 
@@ -94,7 +94,7 @@
 	</div>
 
 	<!-- Content Grid -->
-	<div class="relative grid grid-cols-[1fr_288px] items-start gap-3">
+	<div class="relative grid grid-cols-[1fr_288px] items-stretch gap-3">
 
 		<!-- Left Column -->
 		<div class="flex flex-col gap-3">
@@ -139,12 +139,18 @@
 				{/if}
 			</div>
 
+		</div>
+
+		<!-- Right Column -->
+		<div class="flex flex-col gap-3">
+
 			<!-- Recent Activity -->
-			<div class="overflow-hidden rounded-2xl border border-black/[0.06] bg-white/65 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.07)] backdrop-blur-xl">
+			<div class="flex flex-1 flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white/65 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.07)] backdrop-blur-xl">
 				<div class="flex items-center justify-between border-b border-black/[0.05] px-5 py-4">
 					<p class="font-['Cabinet_Grotesk'] text-[15px] font-bold tracking-[-0.02em] text-[#0a0a0a]">Recent Activity</p>
 					<a href="/audit" class="text-[12px] font-medium text-[#737373] no-underline transition-colors hover:text-[#0a0a0a]">All →</a>
 				</div>
+				<div class="flex-1 overflow-y-auto">
 				{#if data.recentAudit.length === 0}
 					<div class="px-5 py-8 text-center text-[13px] text-[#737373]">No activity yet.</div>
 				{:else}
@@ -160,47 +166,7 @@
 						</div>
 					{/each}
 				{/if}
-			</div>
-
-		</div>
-
-		<!-- Right Column -->
-		<div class="flex flex-col gap-3">
-
-			<!-- Active Onboarding -->
-			<div class="rounded-2xl border border-black/[0.06] bg-white/65 p-5 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.07)] backdrop-blur-xl">
-				<div class="mb-3 flex items-center gap-2">
-					<span class="h-[7px] w-[7px] shrink-0 rounded-full bg-[#0a0a0a]"></span>
-					<span class="text-[12px] font-semibold uppercase tracking-[0.07em] text-[#0a0a0a]">Active Onboarding</span>
 				</div>
-				<p class="font-['Cabinet_Grotesk'] text-[44px] font-extrabold leading-none tracking-[-0.04em] text-[#0a0a0a]">
-					{data.onboardingCount}
-				</p>
-				<p class="mt-2 text-[12.5px] text-[#737373]">
-					{data.onboardingCount === 1 ? 'employee' : 'employees'} currently being onboarded
-				</p>
-				<a href="/employees?status=onboarding"
-					class="mt-4 flex h-8 w-full items-center justify-center rounded-lg border border-black/[0.08] bg-white/60 text-[12.5px] font-medium text-[#0a0a0a] no-underline transition-colors hover:bg-white/90">
-					View Onboarding →
-				</a>
-			</div>
-
-			<!-- Active Terminations -->
-			<div class="rounded-2xl border border-[rgba(192,57,43,0.18)] bg-[rgba(192,57,43,0.03)] p-5 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.07)]">
-				<div class="mb-3 flex items-center gap-2">
-					<span class="h-[7px] w-[7px] shrink-0 rounded-full bg-[#c0392b]"></span>
-					<span class="text-[12px] font-semibold uppercase tracking-[0.07em] text-[#c0392b]">Active Terminations</span>
-				</div>
-				<p class="font-['Cabinet_Grotesk'] text-[44px] font-extrabold leading-none tracking-[-0.04em] text-[#0a0a0a]">
-					{data.terminationCount}
-				</p>
-				<p class="mt-2 text-[12.5px] text-[#737373]">
-					{data.terminationCount === 1 ? 'employee' : 'employees'} currently being offboarded
-				</p>
-				<a href="/employees?status=offboarding"
-					class="mt-4 flex h-8 w-full items-center justify-center rounded-lg border border-[rgba(192,57,43,0.2)] bg-white/60 text-[12.5px] font-medium text-[#0a0a0a] no-underline transition-colors hover:bg-white/90">
-					View Terminations →
-				</a>
 			</div>
 
 		</div>

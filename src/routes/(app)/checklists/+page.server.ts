@@ -3,6 +3,7 @@ import { employee, checklistTemplate, checklistTemplateItem, checklistAssignment
 import { eq, asc, and } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
 import { requireMember } from '$lib/server/auth-guard';
+import * as audit from '$lib/server/audit';
 import { CHECKLIST_TYPES } from '$lib/constants';
 import type { PageServerLoad, Actions } from './$types';
 
@@ -75,14 +76,28 @@ export const actions: Actions = {
 		const startDate = startRaw ? `${startRaw}T08:30:00-08:00` : null;
 		const dueDate   = dueRaw   ? `${dueRaw}T08:30:00-08:00`   : null;
 
-		await db.insert(checklistAssignment).values({
+		const inserted = await db.insert(checklistAssignment).values({
 			organizationId: orgId,
 			employeeId,
 			templateId,
 			assignedByLabel: locals.user?.name,
 			startDate,
 			dueDate
-		}).onConflictDoNothing();
+		}).onConflictDoNothing().returning({ id: checklistAssignment.id });
+
+		// Skip the audit entry if the assignment already existed (no-op conflict).
+		if (inserted.length > 0) {
+			await audit.log({
+				action: 'checklist.assigned',
+				organizationId: orgId,
+				subjectType: 'employee',
+				subjectId: emp.id,
+				subjectLabel: `${emp.firstName} ${emp.lastName}`,
+				actorId: locals.user!.id,
+				actorLabel: locals.user!.name,
+				metadata: { templateId, templateName: tmpl.name, related: { type: 'template', id: templateId, label: tmpl.name } }
+			});
+		}
 
 		return { success: true };
 	},

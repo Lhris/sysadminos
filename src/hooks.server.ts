@@ -5,9 +5,17 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { db } from '$lib/server/db';
 import { member, user } from '$lib/server/db/schema';
 import { and, eq } from 'drizzle-orm';
+import { requestContext } from '$lib/server/request-context';
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	const session = await auth.api.getSession({ headers: event.request.headers });
+
+	let ip: string | undefined;
+	try {
+		ip = event.getClientAddress();
+	} catch {
+		ip = undefined;
+	}
 
 	if (session) {
 		event.locals.session = session.session;
@@ -54,7 +62,9 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	return svelteKitHandler({ event, resolve, auth, building });
+	return requestContext.run({ email: session?.user.email, ip }, () =>
+		svelteKitHandler({ event, resolve, auth, building })
+	);
 };
 
 export const handle: Handle = handleBetterAuth;

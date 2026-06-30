@@ -23,11 +23,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 	] = await Promise.all([
 		db.select().from(auditLog)
 			.where(eq(auditLog.organizationId, orgId))
-			.orderBy(desc(auditLog.createdAt)).limit(5),
+			.orderBy(desc(auditLog.createdAt)).limit(15),
 		db.select({ onboardingCount: count() }).from(employee)
 			.where(and(eq(employee.organizationId, orgId), eq(employee.status, 'onboarding'))),
 		db.select({ terminationCount: count() }).from(employee)
-			.where(and(eq(employee.organizationId, orgId), eq(employee.status, 'offboarding'))),
+			.where(and(eq(employee.organizationId, orgId), eq(employee.status, 'pending_termination'))),
 		db.select({ employeeCount: count() }).from(employee)
 			.where(and(eq(employee.organizationId, orgId), ne(employee.status, 'terminated'))),
 		db.select({ activeCount: count() }).from(employee)

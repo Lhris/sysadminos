@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -9,6 +10,13 @@
 
 	const pending = $derived(data.terminations.filter((t) => t.status === 'pending_termination'));
 	const terminated = $derived(data.terminations.filter((t) => t.status === 'terminated'));
+
+	// Row click opens the termination, but not when the click lands on an
+	// interactive control (links/buttons).
+	function rowClick(e: MouseEvent, employeeId: string) {
+		if ((e.target as HTMLElement).closest('input,button,a,[role="menu"]')) return;
+		goto(`/terminations/${employeeId}`);
+	}
 </script>
 
 <main class="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-10 py-9">
@@ -49,22 +57,18 @@
 								<Table.Head class="pl-5 pr-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Employee</Table.Head>
 								<Table.Head class="px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Role</Table.Head>
 								<Table.Head class="px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Platform removals</Table.Head>
-								<Table.Head class="px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Checklists</Table.Head>
-								<Table.Head class="pl-3 pr-5 text-right text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Actions</Table.Head>
+								<Table.Head class="px-3 pr-5 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Checklists</Table.Head>
 							</Table.Row>
 						</Table.Header>
 						<Table.Body>
 							{#each rows as t (t.employeeId)}
-								<Table.Row class="group">
-									<Table.Cell class="py-3 pl-5 pr-3 text-[13.5px] font-medium text-foreground">{t.firstName} {t.lastName}</Table.Cell>
+								<Table.Row onclick={(e) => rowClick(e, t.employeeId)} class="group cursor-pointer">
+									<Table.Cell class="py-3 pl-5 pr-3">
+										<a href="/terminations/{t.employeeId}" class="text-[13.5px] font-medium text-foreground no-underline hover:underline">{t.firstName} {t.lastName}</a>
+									</Table.Cell>
 									<Table.Cell class="px-3 py-3 text-[13.5px] text-muted-foreground">{t.role}</Table.Cell>
 									<Table.Cell class="px-3 py-3">{@render progress(t.platformDone, t.platformTotal)}</Table.Cell>
-									<Table.Cell class="px-3 py-3">{@render progress(t.checklistDone, t.checklistTotal)}</Table.Cell>
-									<Table.Cell class="py-3 pl-3 pr-5 text-right">
-										<a href="/terminations/{t.employeeId}" class="text-[12px] font-medium text-muted-foreground no-underline opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100">
-											Open →
-										</a>
-									</Table.Cell>
+									<Table.Cell class="px-3 py-3 pr-5">{@render progress(t.checklistDone, t.checklistTotal)}</Table.Cell>
 								</Table.Row>
 							{/each}
 						</Table.Body>

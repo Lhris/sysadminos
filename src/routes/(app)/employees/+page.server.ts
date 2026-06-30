@@ -185,7 +185,7 @@ export const actions: Actions = {
 					subjectLabel: `${emp.firstName} ${emp.lastName}`,
 					actorId: locals.user!.id,
 					actorLabel: locals.user!.name,
-					metadata: { templateId, templateName: tmpl.name, bulk: true }
+					metadata: { templateId, templateName: tmpl.name, bulk: true, related: { type: 'template', id: templateId, label: tmpl.name } }
 				})
 			)
 		);

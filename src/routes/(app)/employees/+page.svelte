@@ -6,7 +6,7 @@
 	import * as Table from '$lib/components/ui/table';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { page } from '$app/state';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { deserialize } from '$app/forms';
 	import { useEmployeeParams } from '$lib/query-params';
 	import { formatDate } from '$lib/utils';
@@ -64,6 +64,13 @@
 	}
 
 	let search = $state('');
+
+	// Row click navigates to the employee, but not when the click lands on an
+	// interactive control (checkbox, status menu, links/buttons).
+	function rowClick(e: MouseEvent, id: string) {
+		if ((e.target as HTMLElement).closest('input,button,a,[role="menu"],[data-no-row-nav]')) return;
+		goto(`/employees/${id}`);
+	}
 
 	const filtered = $derived.by(() => {
 		const q = search.trim().toLowerCase();
@@ -264,13 +271,15 @@
 							<Table.Head class="px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Country</Table.Head>
 							<Table.Head class="px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Microsoft Email</Table.Head>
 							<Table.Head class="px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Start Date</Table.Head>
-							<Table.Head class="px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Status</Table.Head>
-							<Table.Head class="pl-3 pr-5 text-right text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Actions</Table.Head>
+							<Table.Head class="px-3 pr-5 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Status</Table.Head>
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
 						{#each filtered as emp}
-							<Table.Row class="group {selectedSet.has(emp.id) ? 'bg-accent/30' : ''}">
+							<Table.Row
+								onclick={(e) => rowClick(e, emp.id)}
+								class="group cursor-pointer {selectedSet.has(emp.id) ? 'bg-accent/30' : ''}"
+							>
 								<Table.Cell class="w-0 py-3 pl-5 pr-2">
 									<input
 										type="checkbox"
@@ -282,7 +291,7 @@
 								</Table.Cell>
 								<Table.Cell class="py-3 pl-1 pr-3">
 									<div class="flex flex-col gap-[2px]">
-										<span class="text-[13.5px] font-medium text-foreground">{emp.firstName} {emp.lastName}</span>
+										<a href="/employees/{emp.id}" class="text-[13.5px] font-medium text-foreground no-underline hover:underline">{emp.firstName} {emp.lastName}</a>
 										<span class="text-[11.5px] text-muted-foreground">{emp.personalEmail ?? ''}</span>
 									</div>
 								</Table.Cell>
@@ -290,7 +299,7 @@
 								<Table.Cell class="px-3 py-3 text-[13.5px] text-muted-foreground">{emp.country}</Table.Cell>
 								<Table.Cell class="px-3 py-3 text-[13px] text-muted-foreground">{emp.microsoftEmail}</Table.Cell>
 								<Table.Cell class="px-3 py-3 text-[13.5px] text-muted-foreground">{formatDate(emp.startDate)}</Table.Cell>
-								<Table.Cell class="px-3 py-3">
+								<Table.Cell class="px-3 py-3 pr-5">
 									<DropdownMenu.Root>
 										<DropdownMenu.Trigger>
 											{#snippet child({ props })}
@@ -312,11 +321,6 @@
 											</DropdownMenu.RadioGroup>
 										</DropdownMenu.Content>
 									</DropdownMenu.Root>
-								</Table.Cell>
-								<Table.Cell class="py-3 pl-3 pr-5 text-right">
-									<Button variant="ghost" size="sm" href="/employees/{emp.id}" class="h-7 px-2 text-[12px] opacity-0 transition-opacity group-hover:opacity-100">
-										View →
-									</Button>
 								</Table.Cell>
 							</Table.Row>
 						{/each}

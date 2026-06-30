@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import * as Card from '$lib/components/ui/card';
-	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as Select from '$lib/components/ui/select';
 	import { DatePicker } from '$lib/components/ui/date-picker';
@@ -11,7 +10,6 @@
 	import { Label } from '$lib/components/ui/label';
 	import { relativeTime, formatDate } from '$lib/utils';
 	import { visibleChecklistTypes, type ChecklistType } from '$lib/constants';
-	import { page } from '$app/state';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -117,169 +115,19 @@
 		</a>
 	{/if}
 
-	<Tabs.Root value={page.url.searchParams.get('tab') ?? 'general'}>
-		<Tabs.List>
-			<Tabs.Trigger value="general">General</Tabs.Trigger>
-			<Tabs.Trigger value="checklist">Checklist</Tabs.Trigger>
-		</Tabs.List>
+	<div class="grid grid-cols-[1fr_360px] items-start gap-4">
 
-		<Tabs.Content value="general">
-			<div class="mt-4 grid grid-cols-[1fr_360px] items-start gap-4">
-
-				<div class="flex flex-col gap-4">
-
-					<Card.Root>
-						<Card.Header class="flex flex-row items-center justify-between pb-3">
-							<Card.Title class="text-[15px] font-bold tracking-[-0.02em]">Profile</Card.Title>
-							<button type="button" onclick={openEdit} class="text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground">
-								Edit
-							</button>
-						</Card.Header>
-						<Card.Content class="flex flex-col gap-0 p-0">
-
-							{#snippet row(label: string, value: string | null | undefined)}
-								<div class="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-3 last:border-b-0">
-									<span class="text-[12px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{label}</span>
-									<span class="text-right text-[13.5px] text-foreground">{value ?? '—'}</span>
-								</div>
-							{/snippet}
-							{@render row('First Name', emp.firstName)}
-							{@render row('Last Name', emp.lastName)}
-							{@render row('Role', emp.role)}
-							{@render row('Country', emp.country)}
-							{@render row('Address', emp.address)}
-							{@render row('Start Date', formatDate(emp.startDate))}
-							{@render row('Microsoft Email', emp.microsoftEmail)}
-							{@render row('Personal Email', emp.personalEmail)}
-							{@render row('Temp Password', emp.tempPassword ? '••••••••••••' : null)}
-
-						</Card.Content>
-					</Card.Root>
-
-					<Card.Root class="overflow-hidden">
-						<Card.Header class="flex flex-row items-center justify-between pb-3">
-							<Card.Title class="text-[15px] font-bold tracking-[-0.02em]">Workstations</Card.Title>
-							{#if data.assignable.length > 0 || showAssign}
-								<button type="button" onclick={() => (showAssign = !showAssign)} class="text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground">
-									{showAssign ? 'Cancel' : '+ Assign'}
-								</button>
-							{/if}
-						</Card.Header>
-						<Card.Content class="flex flex-col gap-0 p-0">
-
-							{#if showAssign}
-								<form
-									method="POST"
-									action="?/assign"
-									use:enhance={() => {
-										return async ({ result, update }) => {
-											if (result.type === 'success') showAssign = false;
-											await update();
-										};
-									}}
-									class="border-b px-5 py-4"
-								>
-									<div class="flex gap-2">
-										<select name="workstationId" class={selectClass}>
-											<option value="" disabled selected>Select workstation</option>
-											{#if data.assignable.some(w => w.status === 'available')}
-												<optgroup label="Available">
-													{#each data.assignable.filter(w => w.status === 'available') as ws}
-														<option value={ws.id}>{ws.serialNumber} — {ws.make} {ws.model}</option>
-													{/each}
-												</optgroup>
-											{/if}
-											{#if data.assignable.some(w => w.status === 'assigned')}
-												<optgroup label="Reassign">
-													{#each data.assignable.filter(w => w.status === 'assigned') as ws}
-														<option value={ws.id}>{ws.serialNumber} — {ws.make} {ws.model} (with {ws.holderFirstName} {ws.holderLastName})</option>
-													{/each}
-												</optgroup>
-											{/if}
-										</select>
-										<Button type="submit" size="sm" class="shrink-0">Assign</Button>
-									</div>
-									{#if form?.assignError}
-										<p class="mt-2 text-[12px] text-destructive">{form.assignError}</p>
-									{/if}
-								</form>
-							{/if}
-
-							{#if data.workstations.length === 0}
-								<div class="px-5 py-8 text-center">
-									<p class="text-[13px] text-muted-foreground">No workstations assigned.</p>
-								</div>
-							{:else}
-								{#each data.workstations as ws}
-									<div class="flex items-center justify-between border-b border-border/60 px-5 py-[11px] last:border-b-0">
-										<div class="flex flex-col gap-[3px]">
-											<a href="/workstations/{ws.id}" class="font-mono text-[13px] font-medium text-foreground no-underline hover:underline">
-												{ws.serialNumber}
-											</a>
-											<span class="text-[12px] text-muted-foreground">
-												{ws.make} {ws.model} · {deviceTypeLabel[ws.deviceType as DeviceType] ?? ws.deviceType}
-											</span>
-										</div>
-										<form method="POST" action="?/unassign" use:enhance>
-											<input type="hidden" name="workstationId" value={ws.id} />
-											<button type="submit" class="text-[12px] font-medium text-muted-foreground transition-colors hover:text-destructive">
-												Unassign
-											</button>
-										</form>
-									</div>
-								{/each}
-							{/if}
-
-						</Card.Content>
-					</Card.Root>
-
+		<!-- Checklist (main) -->
+		<div class="flex flex-col gap-3">
+			{#if visibleAssignments.length === 0}
+				<div class="rounded-lg border border-dashed py-14 text-center">
+					<p class="text-[13px] text-muted-foreground">No checklists assigned to this employee.</p>
+					<a href="/checklists" class="mt-1 block text-[12px] text-muted-foreground underline hover:text-foreground">
+						Manage checklists →
+					</a>
 				</div>
-
-				<Card.Root class="overflow-hidden">
-					<Card.Header class="flex flex-row items-center justify-between pb-3">
-						<Card.Title class="text-[15px] font-bold tracking-[-0.02em]">Activity</Card.Title>
-						<a href="/audit" class="text-[12px] font-medium text-muted-foreground no-underline hover:text-foreground">Full log →</a>
-					</Card.Header>
-					<Card.Content class="p-0">
-						{#if data.events.length === 0}
-							<div class="px-5 py-10 text-center">
-								<p class="text-[13px] text-muted-foreground">No activity recorded yet.</p>
-							</div>
-						{:else}
-							{#each data.events as event}
-								<div class="flex items-start gap-3 border-b border-border/60 px-5 py-3 last:border-b-0">
-									<div class="mt-0.5 h-[6px] w-[6px] shrink-0 rounded-full bg-muted-foreground/50"></div>
-									<div class="flex min-w-0 flex-1 flex-col gap-0.5">
-										<span class="text-[13px] font-medium text-foreground">
-											{actionLabels[event.action] ?? event.action}
-										</span>
-										{#if event.actorLabel}
-											<span class="text-[11.5px] text-muted-foreground">by {event.actorLabel}</span>
-										{/if}
-									</div>
-									<span class="shrink-0 text-[11px] text-muted-foreground" title={event.createdAt?.toLocaleString()}>
-										{relativeTime(event.createdAt)}
-									</span>
-								</div>
-							{/each}
-						{/if}
-					</Card.Content>
-				</Card.Root>
-
-			</div>
-		</Tabs.Content>
-
-		<Tabs.Content value="checklist">
-			<div class="mt-4 flex flex-col gap-3">
-				{#if visibleAssignments.length === 0}
-					<div class="rounded-lg border border-dashed py-14 text-center">
-						<p class="text-[13px] text-muted-foreground">No checklists assigned to this employee.</p>
-						<a href="/checklists" class="mt-1 block text-[12px] text-muted-foreground underline hover:text-foreground">
-							Manage checklists →
-						</a>
-					</div>
-				{:else}
-					{#each visibleAssignments as assignment (assignment.id)}
+			{:else}
+				{#each visibleAssignments as assignment (assignment.id)}
 						{@const template = data.templates.find(t => t.id === assignment.templateId)}
 						{@const items = data.templateItems.filter(i => i.templateId === assignment.templateId)}
 						{@const tasks = items.filter(i => i.type === 'task')}
@@ -367,12 +215,153 @@
 									{/if}
 								</div>
 							</Card.Content>
-						</Card.Root>
-					{/each}
-				{/if}
-			</div>
-		</Tabs.Content>
-	</Tabs.Root>
+					</Card.Root>
+				{/each}
+			{/if}
+		</div>
+
+		<!-- Sidebar -->
+		<div class="flex flex-col gap-4">
+
+			<Card.Root class="overflow-hidden">
+				<Card.Header class="flex flex-row items-center justify-between pb-3">
+					<Card.Title class="text-[15px] font-bold tracking-[-0.02em]">Activity</Card.Title>
+					<a href="/audit" class="text-[12px] font-medium text-muted-foreground no-underline hover:text-foreground">Full log →</a>
+				</Card.Header>
+				<Card.Content class="p-0">
+					{#if data.events.length === 0}
+						<div class="px-5 py-10 text-center">
+							<p class="text-[13px] text-muted-foreground">No activity recorded yet.</p>
+						</div>
+					{:else}
+						{#each data.events as event}
+							<div class="flex items-start gap-3 border-b border-border/60 px-5 py-3 last:border-b-0">
+								<div class="mt-0.5 h-[6px] w-[6px] shrink-0 rounded-full bg-muted-foreground/50"></div>
+								<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+									<span class="text-[13px] font-medium text-foreground">
+										{actionLabels[event.action] ?? event.action}
+									</span>
+									{#if event.actorLabel}
+										<span class="text-[11.5px] text-muted-foreground">by {event.actorLabel}</span>
+									{/if}
+								</div>
+								<span class="shrink-0 text-[11px] text-muted-foreground" title={event.createdAt?.toLocaleString()}>
+									{relativeTime(event.createdAt)}
+								</span>
+							</div>
+						{/each}
+					{/if}
+				</Card.Content>
+			</Card.Root>
+
+			<Card.Root>
+				<Card.Header class="flex flex-row items-center justify-between pb-3">
+					<Card.Title class="text-[15px] font-bold tracking-[-0.02em]">Profile</Card.Title>
+					<button type="button" onclick={openEdit} class="text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+						Edit
+					</button>
+				</Card.Header>
+				<Card.Content class="flex flex-col gap-0 p-0">
+
+					{#snippet row(label: string, value: string | null | undefined)}
+						<div class="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-3 last:border-b-0">
+							<span class="text-[12px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{label}</span>
+							<span class="text-right text-[13.5px] text-foreground">{value ?? '—'}</span>
+						</div>
+					{/snippet}
+					{@render row('First Name', emp.firstName)}
+					{@render row('Last Name', emp.lastName)}
+					{@render row('Role', emp.role)}
+					{@render row('Country', emp.country)}
+					{@render row('Address', emp.address)}
+					{@render row('Start Date', formatDate(emp.startDate))}
+					{@render row('Microsoft Email', emp.microsoftEmail)}
+					{@render row('Personal Email', emp.personalEmail)}
+					{@render row('Temp Password', emp.tempPassword ? '••••••••••••' : null)}
+
+				</Card.Content>
+			</Card.Root>
+
+			<Card.Root class="overflow-hidden">
+				<Card.Header class="flex flex-row items-center justify-between pb-3">
+					<Card.Title class="text-[15px] font-bold tracking-[-0.02em]">Workstations</Card.Title>
+					{#if data.assignable.length > 0 || showAssign}
+						<button type="button" onclick={() => (showAssign = !showAssign)} class="text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+							{showAssign ? 'Cancel' : '+ Assign'}
+						</button>
+					{/if}
+				</Card.Header>
+				<Card.Content class="flex flex-col gap-0 p-0">
+
+					{#if showAssign}
+						<form
+							method="POST"
+							action="?/assign"
+							use:enhance={() => {
+								return async ({ result, update }) => {
+									if (result.type === 'success') showAssign = false;
+									await update();
+								};
+							}}
+							class="border-b px-5 py-4"
+						>
+							<div class="flex gap-2">
+								<select name="workstationId" class={selectClass}>
+									<option value="" disabled selected>Select workstation</option>
+									{#if data.assignable.some(w => w.status === 'available')}
+										<optgroup label="Available">
+											{#each data.assignable.filter(w => w.status === 'available') as ws}
+												<option value={ws.id}>{ws.serialNumber} — {ws.make} {ws.model}</option>
+											{/each}
+										</optgroup>
+									{/if}
+									{#if data.assignable.some(w => w.status === 'assigned')}
+										<optgroup label="Reassign">
+											{#each data.assignable.filter(w => w.status === 'assigned') as ws}
+												<option value={ws.id}>{ws.serialNumber} — {ws.make} {ws.model} (with {ws.holderFirstName} {ws.holderLastName})</option>
+											{/each}
+										</optgroup>
+									{/if}
+								</select>
+								<Button type="submit" size="sm" class="shrink-0">Assign</Button>
+							</div>
+							{#if form?.assignError}
+								<p class="mt-2 text-[12px] text-destructive">{form.assignError}</p>
+							{/if}
+						</form>
+					{/if}
+
+					{#if data.workstations.length === 0}
+						<div class="px-5 py-8 text-center">
+							<p class="text-[13px] text-muted-foreground">No workstations assigned.</p>
+						</div>
+					{:else}
+						{#each data.workstations as ws}
+							<div class="flex items-center justify-between border-b border-border/60 px-5 py-[11px] last:border-b-0">
+								<div class="flex flex-col gap-[3px]">
+									<a href="/workstations/{ws.id}" class="font-mono text-[13px] font-medium text-foreground no-underline hover:underline">
+										{ws.serialNumber}
+									</a>
+									<span class="text-[12px] text-muted-foreground">
+										{ws.make} {ws.model} · {deviceTypeLabel[ws.deviceType as DeviceType] ?? ws.deviceType}
+									</span>
+								</div>
+								<form method="POST" action="?/unassign" use:enhance>
+									<input type="hidden" name="workstationId" value={ws.id} />
+									<button type="submit" class="text-[12px] font-medium text-muted-foreground transition-colors hover:text-destructive">
+										Unassign
+									</button>
+								</form>
+							</div>
+						{/each}
+					{/if}
+
+				</Card.Content>
+			</Card.Root>
+
+		</div>
+
+	</div>
 
 </main>
 

@@ -86,6 +86,8 @@ export const auditLog = pgTable('audit_log', {
 	subjectLabel: text('subject_label').notNull(),
 	actorId: text('actor_id'),
 	actorLabel: text('actor_label'),
+	actorEmail: text('actor_email'),
+	ipAddress: text('ip_address'),
 	metadata: text('metadata'),
 	createdAt: timestamp('created_at').$defaultFn(() => new Date())
 }, (t) => [

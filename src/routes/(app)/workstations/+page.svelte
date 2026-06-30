@@ -1,11 +1,19 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import * as Table from '$lib/components/ui/table';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	// Row click navigates to the workstation, but not when the click lands on an
+	// interactive control (status select, links, buttons).
+	function rowClick(e: MouseEvent, id: string) {
+		if ((e.target as HTMLElement).closest('input,button,a,select,[role="menu"]')) return;
+		goto(`/workstations/${id}`);
+	}
 
 	type Status = 'available' | 'assigned' | 'in_repair' | 'flagged' | 'retired';
 	type DeviceType = 'laptop' | 'desktop' | 'monitor' | 'other';
@@ -107,7 +115,7 @@
 					</Table.Header>
 					<Table.Body>
 						{#each filtered as w}
-							<Table.Row>
+							<Table.Row onclick={(e) => rowClick(e, w.id)} class="cursor-pointer">
 								<Table.Cell class="py-3 pl-5 pr-3">
 									<a href="/workstations/{w.id}" class="font-mono text-[13px] font-medium text-foreground no-underline hover:underline">
 										{w.serialNumber}

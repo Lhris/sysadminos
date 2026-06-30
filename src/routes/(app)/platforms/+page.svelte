@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import * as Card from '$lib/components/ui/card';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as Table from '$lib/components/ui/table';
@@ -14,6 +15,13 @@
 	let sheetOpen = $state(false);
 
 	const totalActive = $derived(data.platforms.reduce((n, p) => n + p.activeCount, 0));
+
+	// Row click navigates to the platform, but not when the click lands on an
+	// interactive control (links/buttons).
+	function rowClick(e: MouseEvent, id: string) {
+		if ((e.target as HTMLElement).closest('input,button,a,[role="menu"]')) return;
+		goto(`/platforms/${id}`);
+	}
 </script>
 
 <main class="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-10 py-9">
@@ -45,28 +53,24 @@
 							<Table.Head class="px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Description</Table.Head>
 							<Table.Head class="px-3 text-right text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Active</Table.Head>
 							<Table.Head class="px-3 text-right text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Removed</Table.Head>
-							<Table.Head class="px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Unlinked</Table.Head>
-							<Table.Head class="pl-3 pr-5 text-right text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Actions</Table.Head>
+							<Table.Head class="px-3 pr-5 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Unlinked</Table.Head>
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
 						{#each data.platforms as p (p.id)}
-							<Table.Row class="group">
-								<Table.Cell class="py-3 pl-5 pr-3 text-[13.5px] font-medium text-foreground">{p.name}</Table.Cell>
+							<Table.Row onclick={(e) => rowClick(e, p.id)} class="group cursor-pointer">
+								<Table.Cell class="py-3 pl-5 pr-3">
+									<a href="/platforms/{p.id}" class="text-[13.5px] font-medium text-foreground no-underline hover:underline">{p.name}</a>
+								</Table.Cell>
 								<Table.Cell class="px-3 py-3 text-[13px] text-muted-foreground">{p.description ?? '—'}</Table.Cell>
 								<Table.Cell class="px-3 py-3 text-right text-[13.5px] font-medium tabular-nums text-foreground">{p.activeCount}</Table.Cell>
 								<Table.Cell class="px-3 py-3 text-right text-[13.5px] tabular-nums {p.removedCount > 0 ? 'text-muted-foreground' : 'text-muted-foreground/40'}">{p.removedCount}</Table.Cell>
-								<Table.Cell class="px-3 py-3">
+								<Table.Cell class="px-3 py-3 pr-5">
 									{#if p.unlinkedCount > 0}
 										<Badge variant="outline" class="border-amber-300 text-[11px] text-amber-700">{p.unlinkedCount} unlinked</Badge>
 									{:else}
 										<span class="text-[12px] text-muted-foreground">—</span>
 									{/if}
-								</Table.Cell>
-								<Table.Cell class="py-3 pl-3 pr-5 text-right">
-									<a href="/platforms/{p.id}" class="text-[12px] font-medium text-muted-foreground no-underline opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100">
-										View →
-									</a>
 								</Table.Cell>
 							</Table.Row>
 						{/each}
