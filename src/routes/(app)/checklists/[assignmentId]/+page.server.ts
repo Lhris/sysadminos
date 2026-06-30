@@ -1,8 +1,10 @@
 import { db } from '$lib/server/db';
-import { employee, checklistTemplate, checklistTemplateItem, checklistAssignment, checklistCompletion } from '$lib/server/db/schema';
-import { eq, and, asc } from 'drizzle-orm';
+import { employee, checklistTemplate, checklistTemplateItem, checklistAssignment, checklistCompletion, automation } from '$lib/server/db/schema';
+import { eq, and, asc, inArray } from 'drizzle-orm';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { requireMember } from '$lib/server/auth-guard';
+import { parseFields } from '$lib/automation';
+import { runAttachedAutomation } from '$lib/server/run-automation';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -24,7 +26,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	if (!emp || !template) error(404, 'Not found');
 
-	return { assignment, employee: emp, template, items, completions };
+	// Load any automations attached to this template's items, keyed by id, so
+	// the run dialog can render fields + payload preview.
+	const automationIds = [...new Set(items.map(i => i.automationId).filter(Boolean) as string[])];
+	const automationRows = automationIds.length > 0
+		? await db.select().from(automation)
+			.where(and(eq(automation.organizationId, orgId), inArray(automation.id, automationIds)))
+		: [];
+	const automations = Object.fromEntries(
+		automationRows.map(a => [a.id, { ...a, fields: parseFields(a.fields) }])
+	);
+
+	return { assignment, employee: emp, template, items, completions, automations };
 };
 
 export const actions: Actions = {
@@ -73,6 +86,19 @@ export const actions: Actions = {
 			.where(and(eq(checklistAssignment.id, params.assignmentId), eq(checklistAssignment.organizationId, orgId)));
 
 		return { success: true };
+	},
+
+	runAutomation: async ({ request, params, locals }) => {
+		requireMember(locals.memberRole);
+		const data = await request.formData();
+		return runAttachedAutomation({
+			orgId: locals.organizationId!,
+			assignmentId: params.assignmentId,
+			templateItemId: data.get('templateItemId')?.toString() ?? '',
+			payloadRaw: data.get('payload')?.toString() ?? '',
+			actorId: locals.user?.id,
+			actorLabel: locals.user?.name
+		});
 	},
 
 	unassign: async ({ params, locals }) => {

@@ -1,8 +1,10 @@
 import { db } from '$lib/server/db';
-import { employee, checklistTemplate, checklistTemplateItem, checklistAssignment, checklistCompletion } from '$lib/server/db/schema';
+import { employee, checklistTemplate, checklistTemplateItem, checklistAssignment, checklistCompletion, automation } from '$lib/server/db/schema';
 import { eq, and, asc, inArray } from 'drizzle-orm';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { requireMember } from '$lib/server/auth-guard';
+import { parseFields } from '$lib/automation';
+import { runAttachedAutomation } from '$lib/server/run-automation';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -21,7 +23,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			employeeId: checklistAssignment.employeeId,
 			assignedAt: checklistAssignment.assignedAt,
 			firstName: employee.firstName,
-			lastName: employee.lastName
+			lastName: employee.lastName,
+			microsoftEmail: employee.microsoftEmail,
+			personalEmail: employee.personalEmail,
+			tempPassword: employee.tempPassword,
+			role: employee.role,
+			country: employee.country,
+			address: employee.address,
+			startDate: employee.startDate,
+			status: employee.status
 		})
 		.from(checklistAssignment)
 		.innerJoin(employee, eq(checklistAssignment.employeeId, employee.id))
@@ -37,7 +47,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			.where(inArray(checklistCompletion.assignmentId, assignments.map(a => a.id)))
 		: [];
 
-	return { template, items, assignments, completions };
+	const automationRows = await db.select()
+		.from(automation)
+		.where(eq(automation.organizationId, orgId))
+		.orderBy(asc(automation.name));
+	const automations = automationRows.map(a => ({ ...a, fields: parseFields(a.fields) }));
+
+	return { template, items, assignments, completions, automations };
 };
 
 export const actions: Actions = {
@@ -90,9 +106,10 @@ export const actions: Actions = {
 		const videoUrl = data.get('videoUrl')?.toString().trim() || null;
 		const docUrl   = data.get('docUrl')?.toString().trim() || null;
 		const notes    = data.get('notes')?.toString().trim() || null;
+		const automationId = data.get('automationId')?.toString().trim() || null;
 
 		await db.update(checklistTemplateItem)
-			.set({ label, videoUrl, docUrl, notes })
+			.set({ label, videoUrl, docUrl, notes, automationId })
 			.where(eq(checklistTemplateItem.id, id));
 
 		return { success: true };
@@ -153,6 +170,19 @@ export const actions: Actions = {
 
 		await db.insert(checklistTemplateItem).values({ templateId: params.id, label, type: 'section' });
 		return { success: true };
+	},
+
+	runAutomation: async ({ request, locals }) => {
+		requireMember(locals.memberRole);
+		const data = await request.formData();
+		return runAttachedAutomation({
+			orgId: locals.organizationId!,
+			assignmentId: data.get('assignmentId')?.toString() ?? '',
+			templateItemId: data.get('templateItemId')?.toString() ?? '',
+			payloadRaw: data.get('payload')?.toString() ?? '',
+			actorId: locals.user?.id,
+			actorLabel: locals.user?.name
+		});
 	},
 
 	reorderItems: async ({ request, locals }) => {

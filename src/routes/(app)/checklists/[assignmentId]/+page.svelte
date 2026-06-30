@@ -5,9 +5,26 @@
 	import * as Table from '$lib/components/ui/table';
 	import { DatePicker } from '$lib/components/ui/date-picker';
 	import { relativeTime, formatDate } from '$lib/utils';
+	import RunAutomationDialog from '$lib/components/RunAutomationDialog.svelte';
+	import type { AutomationField } from '$lib/automation';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	// ── Automation run dialog ──────────────────────────────────────────
+	type RunAutomation = { id: string; name: string; description: string | null; url: string; fields: AutomationField[] };
+
+	let runOpen = $state(false);
+	let runItemId = $state('');
+	let runAuto = $state<RunAutomation | null>(null);
+
+	function openRun(itemId: string, automationId: string) {
+		const auto = (data.automations as Record<string, RunAutomation>)[automationId];
+		if (!auto) return;
+		runItemId = itemId;
+		runAuto = auto;
+		runOpen = true;
+	}
 
 	type Status = 'active' | 'onboarding' | 'offboarding' | 'terminated';
 	const statusMeta: Record<Status, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
@@ -174,6 +191,14 @@
 												</svg>
 											</a>
 										{/if}
+										{#if item.automationId}
+											<button type="button" title="Run automation" onclick={() => openRun(item.id, item.automationId!)}
+												class="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground">
+												<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+													<path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+												</svg>
+											</button>
+										{/if}
 									</div>
 								</Table.Cell>
 								<Table.Cell class="py-3.5 pr-5 text-right">
@@ -197,3 +222,12 @@
 	{/if}
 
 </main>
+
+<!-- Run automation dialog -->
+<RunAutomationDialog
+	bind:open={runOpen}
+	automation={runAuto}
+	profile={data.employee}
+	action="?/runAutomation"
+	hidden={{ templateItemId: runItemId }}
+/>

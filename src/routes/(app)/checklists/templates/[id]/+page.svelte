@@ -77,7 +77,7 @@
 			</form>
 		</div>
 	{:else}
-		<TemplateTable assignments={data.assignments} items={data.items} completions={data.completions} />
+		<TemplateTable assignments={data.assignments} items={data.items} completions={data.completions} automations={data.automations} />
 	{/if}
 
 </main>

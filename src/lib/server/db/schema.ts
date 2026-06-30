@@ -117,6 +117,7 @@ export const checklistTemplateItem = pgTable('checklist_template_item', {
 	description: text('description'),
 	videoUrl: text('video_url'),
 	docUrl: text('doc_url'),
+	automationId: text('automation_id').references(() => automation.id, { onDelete: 'set null' }),
 	notes: text('notes'),
 	position: integer('position').notNull().default(0),
 	createdAt: timestamp('created_at').$defaultFn(() => new Date())
@@ -147,6 +148,26 @@ export const checklistCompletion = pgTable('checklist_completion', {
 }, (t) => [
 	uniqueIndex('checklist_completion_unique_idx').on(t.assignmentId, t.templateItemId),
 	index('checklist_completion_assignment_idx').on(t.assignmentId)
+]);
+
+// ── Automations ───────────────────────────────────────────────────
+
+// A reusable HTTP webhook (e.g. a Power Automate trigger). `fields` is a JSON
+// array of { key, label, default }, where `default` may contain {{token}}
+// placeholders resolved from an employee profile at run time. Attached to
+// checklist template items via checklistTemplateItem.automationId.
+export const automation = pgTable('automation', {
+	id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+	organizationId: text('organization_id').notNull(),
+	name: text('name').notNull(),
+	description: text('description'),
+	url: text('url').notNull(),
+	method: text('method').notNull().default('POST'),
+	fields: text('fields'),
+	createdAt: timestamp('created_at').$defaultFn(() => new Date()),
+	updatedAt: timestamp('updated_at').$defaultFn(() => new Date())
+}, (t) => [
+	index('automation_org_idx').on(t.organizationId)
 ]);
 
 // ── Platform tracker ──────────────────────────────────────────────

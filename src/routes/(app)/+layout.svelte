@@ -15,6 +15,7 @@
         { label: 'Workstations', href: '/workstations' },
         { label: 'Platforms', href: '/platforms' },
         { label: 'Checklists', href: '/checklists' },
+        { label: 'Automations', href: '/automations' },
         { label: 'Orders', href: '/orders' },
         { label: 'Audit Log', href: '/audit' },
         { label: 'Terminations', href: '/terminations' },

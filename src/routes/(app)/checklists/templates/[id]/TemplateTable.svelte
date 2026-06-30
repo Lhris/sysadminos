@@ -11,15 +11,41 @@
 	import { createColumnHelper, getCoreRowModel } from '@tanstack/table-core';
 	import { Pencil, ChevronUp, ChevronDown } from '@lucide/svelte';
 
-	type Assignment = { id: string; employeeId: string; firstName: string; lastName: string };
-	type Item = { id: string; label: string; type: string; videoUrl?: string | null; docUrl?: string | null };
-	type Completion = { assignmentId: string; templateItemId: string };
+	import RunAutomationDialog from '$lib/components/RunAutomationDialog.svelte';
+	import { Zap } from '@lucide/svelte';
+	import type { AutomationField, ProfileLike } from '$lib/automation';
 
-	let { assignments, items, completions }: {
+	type Assignment = {
+		id: string; employeeId: string; firstName: string; lastName: string;
+	} & ProfileLike;
+	type Item = { id: string; label: string; type: string; videoUrl?: string | null; docUrl?: string | null; automationId?: string | null };
+	type Completion = { assignmentId: string; templateItemId: string };
+	type Automation = { id: string; name: string; description: string | null; url: string; fields: AutomationField[] };
+
+	let { assignments, items, completions, automations }: {
 		assignments: Assignment[];
 		items: Item[];
 		completions: Completion[];
+		automations: Automation[];
 	} = $props();
+
+	// ── Run automation (per assigned user) ─────────────────────────────
+	let runOpen = $state(false);
+	let runAuto = $state<Automation | null>(null);
+	let runProfile = $state<Assignment | null>(null);
+	let runItemId = $state('');
+	let runAssignmentId = $state('');
+
+	function openRun(assignmentId: string, item: Item) {
+		const auto = automations.find(a => a.id === item.automationId);
+		const profile = assignments.find(a => a.id === assignmentId);
+		if (!auto || !profile) return;
+		runAuto = auto;
+		runProfile = profile;
+		runItemId = item.id;
+		runAssignmentId = assignmentId;
+		runOpen = true;
+	}
 
 	let hideCompleted = $state(true);
 	let confirmDeleteId = $state<string | null>(null);
@@ -31,12 +57,14 @@
 	let sheetLabel = $state('');
 	let sheetVideoUrl = $state('');
 	let sheetDocUrl = $state('');
+	let sheetAutomationId = $state('');
 
 	function openSheet(item: Item) {
 		sheetItem = item;
 		sheetLabel = item.label;
 		sheetVideoUrl = item.videoUrl ?? '';
 		sheetDocUrl = item.docUrl ?? '';
+		sheetAutomationId = item.automationId ?? '';
 		sheetOpen = true;
 	}
 
@@ -236,21 +264,30 @@
 							</td>
 							{#each visibleAssignments as a (a.id)}
 								{@const done = isDone(a.id, item.id)}
-								<td class="px-3 py-3 text-center">
-									<form method="POST" action="?/toggle" use:enhance class="flex justify-center">
-										<input type="hidden" name="assignmentId" value={a.id} />
-										<input type="hidden" name="templateItemId" value={item.id} />
-										<input type="hidden" name="completing" value={done ? 'false' : 'true'} />
-										<button type="submit" title="{done ? 'Mark incomplete' : 'Mark complete'}"
-											class="flex h-5 w-5 items-center justify-center rounded border-2 transition-colors
-												{done ? 'border-foreground bg-foreground hover:border-destructive hover:bg-destructive' : 'border-border bg-background hover:border-foreground/50'}">
-											{#if done}
-												<svg class="h-3 w-3 text-background" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-													<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-												</svg>
-											{/if}
-										</button>
-									</form>
+								<td class="px-3 py-3">
+									<div class="flex items-center justify-center gap-1.5">
+										<form method="POST" action="?/toggle" use:enhance class="flex justify-center">
+											<input type="hidden" name="assignmentId" value={a.id} />
+											<input type="hidden" name="templateItemId" value={item.id} />
+											<input type="hidden" name="completing" value={done ? 'false' : 'true'} />
+											<button type="submit" title="{done ? 'Mark incomplete' : 'Mark complete'}"
+												class="flex h-5 w-5 items-center justify-center rounded border-2 transition-colors
+													{done ? 'border-foreground bg-foreground hover:border-destructive hover:bg-destructive' : 'border-border bg-background hover:border-foreground/50'}">
+												{#if done}
+													<svg class="h-3 w-3 text-background" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+													</svg>
+												{/if}
+											</button>
+										</form>
+										{#if item.automationId}
+											<button type="button" title="Run automation for {a.firstName}"
+												onclick={() => openRun(a.id, item)}
+												class="text-muted-foreground/40 transition-colors hover:text-foreground">
+												<Zap class="h-3.5 w-3.5" />
+											</button>
+										{/if}
+									</div>
 								</td>
 							{/each}
 						{/if}
@@ -370,6 +407,22 @@
 							</Label>
 							<Input name="docUrl" bind:value={sheetDocUrl} placeholder="https://notion.so/..." />
 						</div>
+						<div class="flex flex-col gap-1.5">
+							<Label class="text-[13px]">
+								Automation
+								<span class="ml-1 text-[11px] font-normal text-muted-foreground">Optional</span>
+							</Label>
+							<select name="automationId" bind:value={sheetAutomationId}
+								class="h-9 rounded-md border border-input bg-background px-3 text-[13px] shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+								<option value="">None</option>
+								{#each automations as a (a.id)}
+									<option value={a.id}>{a.name}</option>
+								{/each}
+							</select>
+							{#if automations.length === 0}
+								<p class="text-[11.5px] text-muted-foreground">No automations yet. Create one on the <a href="/automations" class="underline">Automations</a> page.</p>
+							{/if}
+						</div>
 					{/if}
 				</div>
 
@@ -383,3 +436,12 @@
 		{/if}
 	</Sheet.Content>
 </Sheet.Root>
+
+<!-- Run automation dialog -->
+<RunAutomationDialog
+	bind:open={runOpen}
+	automation={runAuto}
+	profile={runProfile}
+	action="?/runAutomation"
+	hidden={{ assignmentId: runAssignmentId, templateItemId: runItemId }}
+/>
